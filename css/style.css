@@ -375,6 +375,20 @@ body[data-cursor="laser"] .stage-canvas {
   flex-shrink: 0;
 }
 
+.dock-feed-btn {
+  color: var(--ink-primary);
+  background: rgba(226, 152, 88, 0.17);
+}
+
+.dock-feed-btn:hover {
+  background: rgba(226, 152, 88, 0.28);
+  transform: translateY(-1px);
+}
+
+.dock-feed-btn:active {
+  transform: scale(0.95);
+}
+
 .dock-action-btn {
   color: var(--ink-primary);
   background: rgba(230, 138, 158, 0.14);
