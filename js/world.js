@@ -113,9 +113,12 @@
       this.pomPomVel = 0;
       this.bowlFoodLevel = 0.25; // 0..1 kibble fullness inside left ceramic bowl
       this.bowlWaterLevel = 0.35; // 0..1 fresh water fullness inside right ceramic bowl
+      this.plateMeatLevel = 0.0; // 0..1 fresh salmon/fish meat fullness on left porcelain fish plate
       this.bowlPourTimer = 0;
       this.waterPourTimer = 0;
+      this.fishServeTimer = 0;
       this.kibbleDrops = [];
+      this.fishDrops = [];
       this.waterRipples = [];
       this.grassWiggle = 0;
       this.useRealClock = false;
@@ -233,6 +236,20 @@
           this.spawnHeart(this.cat.x, this.cat.y - 78 * s, 2);
           this.spawnSparkles(this.cat.x, this.cat.y - 54 * s, 8, ["#98E2F7", "#BCE8FF", "#F7A6BA"]);
           if (window.MoeAudio) window.MoeAudio.playMew("sweet");
+        } else if (ev === "fish_plate_bite") {
+          const L = this.getRoomLayout();
+          this.plateMeatLevel = Math.max(0.0, this.plateMeatLevel - 0.18);
+          if (this.plateMeatLevel <= 0.02) {
+            this.cat.stateTimer = Math.min(this.cat.stateTimer, 0.25);
+          }
+          this.spawnSparkles(L.bed.x, L.bed.y - 6, 5, ["#F79A82", "#FFCF9E", "#FFE28A"]);
+          this.spawnHeart(this.cat.x - 10 * this.cat.getScale(), this.cat.y - 68 * this.cat.getScale(), 2);
+          if (window.MoeAudio) window.MoeAudio.playMunch();
+        } else if (ev === "fish_plate_done") {
+          const s = this.cat.getScale();
+          this.spawnHeart(this.cat.x, this.cat.y - 80 * s, 4);
+          this.spawnSparkles(this.cat.x, this.cat.y - 52 * s, 12, ["#FA9C84", "#FFE28A", "#F7A6BA", "#B7EFC5"]);
+          if (window.MoeAudio) window.MoeAudio.playLevelUp();
         }
       };
 
@@ -414,12 +431,10 @@
         return "bowls";
       }
 
-      // 3. Cozy Cat Bed Cushion -> Invite kitty to stroll over to its bed!
-      if (Math.hypot(clientX - L.bed.x, (clientY - L.bed.y) * 1.6) < L.bed.rx + 8) {
-        this.spawnRipple(L.bed.x, L.bed.y);
-        this.cat.callTo(L.bed.x, L.bed.y + 4);
-        if (window.MoeAudio) window.MoeAudio.playMew("sweet");
-        return "bed";
+      // 3. Left Porcelain Fish-Meat Platter -> Serve fresh juicy salmon & fish fillets and call kitty to feast!
+      if (Math.hypot(clientX - L.bed.x, (clientY - L.bed.y) * 1.6) < L.bed.rx + 10) {
+        this.serveFishMeatOnPlate();
+        return "fish_plate";
       }
 
       // 3B. Cozy Cream Sofa -> Bounce soft pillows & invite kitty to lounge nearby!
@@ -738,6 +753,41 @@
       this.cat.goToWaterBowl(wx, L.bowls.y, 3.4);
     }
 
+    /**
+     * Serve fresh juicy salmon & steamed fish fillets onto the left porcelain fish-meat plate,
+     * with savory rising steam wisps & sparkles, summoning kitty for a gourmet feast!
+     */
+    serveFishMeatOnPlate() {
+      const L = this.getRoomLayout();
+      const px = L.bed.x;
+      const py = L.bed.y - 2;
+
+      this.fishServeTimer = 0.95;
+      this.spawnRipple(px, py + 3);
+      this.spawnSparkles(px, py - 14, 7, ["#FA9C84", "#FFE28A", "#FFF4D6"]);
+
+      const fillets = [
+        { ox: -11, oy: 1, rot: -0.25, col: "#F48B70", delay: 0.03 },
+        { ox: 10,  oy: 1.5, rot: 0.22,  col: "#F5A56B", delay: 0.11 },
+        { ox: 0,   oy: -3.5, rot: -0.06, col: "#FA9E85", delay: 0.19 }
+      ];
+      for (const fl of fillets) {
+        this.fishDrops.push({
+          x: px + fl.ox * 0.4,
+          y: py - 56,
+          targetX: px + fl.ox,
+          targetY: py + fl.oy,
+          vy: 20,
+          rot: fl.rot,
+          color: fl.col,
+          delay: fl.delay
+        });
+      }
+
+      if (window.MoeAudio) window.MoeAudio.playFishServe();
+      this.cat.goToFishPlate(px, L.bed.y);
+    }
+
     tossFish(targetX, targetY) {
       const b = this.cat.getFloorBounds();
       const landX = Math.max(b.minX + 14, Math.min(b.maxX - 14, targetX));
@@ -882,6 +932,26 @@
         wr.r += dt * 11.5;
         wr.life -= dt * 1.9;
         if (wr.life <= 0) this.waterRipples.splice(i, 1);
+      }
+
+      // Serving fresh salmon fillets onto the left porcelain fish-meat plate
+      if (this.fishServeTimer > 0) {
+        this.fishServeTimer = Math.max(0, this.fishServeTimer - dt);
+      }
+      for (let i = this.fishDrops.length - 1; i >= 0; i--) {
+        const fd = this.fishDrops[i];
+        if (fd.delay > 0) {
+          fd.delay -= dt;
+          continue;
+        }
+        fd.vy += 520 * dt;
+        fd.y += fd.vy * dt;
+        fd.x += (fd.targetX - fd.x) * Math.min(1, dt * 6);
+        if (fd.y >= fd.targetY) {
+          this.plateMeatLevel = Math.min(1.0, this.plateMeatLevel + 0.36);
+          this.spawnSparkles(fd.targetX, fd.targetY - 4, 4, ["#FA9C84", "#FFE28A"]);
+          this.fishDrops.splice(i, 1);
+        }
       }
 
       // Window clouds, daytime gliding birds & night shooting star
@@ -2692,39 +2762,156 @@
       const { x, y, rx, ry } = bed;
       ctx.save();
 
+      // Ground shadow underneath porcelain fish-meat platter
       ctx.fillStyle = night > 0.5 ? "rgba(0,0,0,0.30)" : "rgba(95, 78, 62, 0.14)";
       ctx.beginPath();
-      ctx.ellipse(x, y + 4, rx + 3, ry + 2, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y + 4, rx + 2, ry + 2, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Outer plush donut bolster rim
-      ctx.fillStyle = night > 0.5 ? "#4F5470" : "#EBD9CE";
+      // Glazed ceramic outer plate rim
+      ctx.fillStyle = night > 0.5 ? "#505672" : "#EBDAD0";
       ctx.beginPath();
       ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Inner warm fleece cushion
-      ctx.fillStyle = night > 0.5 ? "#63698A" : "#FAF4EC";
+      // Subtle pastel ceramic glaze inner ring
+      ctx.strokeStyle = night > 0.5 ? "rgba(182, 214, 232, 0.30)" : "rgba(166, 206, 224, 0.62)";
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.ellipse(x, y - 1.5, rx * 0.72, ry * 0.65, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y - 0.8, rx * 0.85, ry * 0.78, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Clean glazed white porcelain dish interior
+      ctx.fillStyle = night > 0.5 ? "#616888" : "#FDFBF7";
+      ctx.beginPath();
+      ctx.ellipse(x, y - 1.4, rx * 0.75, ry * 0.68, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Cute tiny plush fish kicker pillow tucked neatly inside the cat bed!
+      // Cute painted blue fish ceramic motif printed at center of the plate bottom!
       ctx.save();
-      ctx.translate(x + rx * 0.22, y - 2.5);
-      ctx.rotate(-0.18);
-      ctx.fillStyle = night > 0.5 ? "#6F88A6" : "#A8D2E8";
+      ctx.translate(x, y - 1.5);
+      ctx.rotate(-0.08);
+      ctx.fillStyle = night > 0.5 ? "rgba(130, 178, 214, 0.55)" : "rgba(148, 198, 228, 0.65)";
       ctx.beginPath();
       ctx.moveTo(-6, 0); ctx.lineTo(-11, -3.5); ctx.lineTo(-9.5, 0); ctx.lineTo(-11, 3.5); ctx.closePath();
       ctx.fill();
       ctx.beginPath();
-      ctx.ellipse(0, 0, 6.8, 4.0, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 6.8, 3.8, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#FFF";
+      ctx.fillStyle = night > 0.5 ? "#616888" : "#FDFBF7";
       ctx.beginPath();
       ctx.arc(3.2, -0.8, 0.9, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+
+      // Gourmet Fresh Salmon & Steamed Fish Fillets served on the porcelain plate!
+      if (this.plateMeatLevel > 0.04) {
+        const drawSalmonSlice = (ox, oy, rot, col, scale = 1) => {
+          ctx.save();
+          ctx.translate(x + ox, y + oy);
+          ctx.rotate(rot);
+          ctx.scale(scale, scale);
+
+          // Soft meat shadow on porcelain
+          ctx.fillStyle = "rgba(120, 72, 52, 0.16)";
+          ctx.beginPath();
+          ctx.ellipse(0, 2.2, 11.5, 5.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Juicy coral salmon fillet slice
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.moveTo(-11, 1);
+          ctx.quadraticCurveTo(-5, -6.5, 9, -4.5);
+          ctx.quadraticCurveTo(13, 0, 9.5, 4.5);
+          ctx.quadraticCurveTo(-4, 6.2, -11, 1);
+          ctx.closePath();
+          ctx.fill();
+
+          // Tender creamy marbling stripes across salmon fillet!
+          ctx.strokeStyle = "rgba(255, 244, 234, 0.72)";
+          ctx.lineWidth = 1.25;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(-5.5, -3.2); ctx.quadraticCurveTo(-4, 0.5, -5.2, 3.6);
+          ctx.moveTo(0.2, -3.8);  ctx.quadraticCurveTo(1.6, 0.2, 0.4, 4.0);
+          ctx.moveTo(5.6, -3.4);  ctx.quadraticCurveTo(6.8, 0.2, 5.5, 3.4);
+          ctx.stroke();
+          ctx.restore();
+        };
+
+        if (this.plateMeatLevel >= 0.05) {
+          drawSalmonSlice(-11, -1.5, -0.22, "#F38A6E", 0.95);
+        }
+        if (this.plateMeatLevel >= 0.36) {
+          drawSalmonSlice(10, -1.0, 0.20, "#F5A56B", 0.94);
+        }
+        if (this.plateMeatLevel >= 0.68) {
+          drawSalmonSlice(0, -4.8, -0.05, "#FA9D84", 1.02);
+          // Fresh little green garnish leaf on top of gourmet salmon feast
+          ctx.save();
+          ctx.translate(x + 2, y - 9.5);
+          ctx.fillStyle = night > 0.5 ? "#5BA374" : "#77C48B";
+          ctx.beginPath();
+          ctx.ellipse(-3.5, 0, 3.6, 2.0, -0.4, 0, Math.PI * 2);
+          ctx.ellipse(3.2, -0.6, 3.4, 1.9, 0.35, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Gentle warm savory aroma wisps curling upward from fresh fish meat!
+        const stShift = (this.time * 11) % 16;
+        const stAlpha = (1 - stShift / 16) * (night > 0.5 ? 0.30 : 0.48);
+        ctx.strokeStyle = `rgba(255, 250, 240, ${stAlpha.toFixed(2)})`;
+        ctx.lineWidth = 1.4;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x - 7, y - 12 - stShift * 0.6);
+        ctx.quadraticCurveTo(x - 10, y - 18 - stShift * 0.7, x - 6, y - 24 - stShift * 0.8);
+        ctx.moveTo(x + 6, y - 11 - ((stShift + 8) % 16) * 0.6);
+        ctx.quadraticCurveTo(x + 9, y - 17 - ((stShift + 8) % 16) * 0.7, x + 5, y - 23 - ((stShift + 8) % 16) * 0.8);
+        ctx.stroke();
+      }
+
+      // Falling fresh salmon fillets & cute wooden serving tray hovering during serve!
+      for (const fd of this.fishDrops) {
+        if (fd.delay > 0) continue;
+        ctx.save();
+        ctx.translate(fd.x, fd.y);
+        ctx.rotate(fd.rot);
+        ctx.fillStyle = fd.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 10.5, 4.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 244, 234, 0.75)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(-4, -3); ctx.lineTo(-4, 3);
+        ctx.moveTo(1, -3.4); ctx.lineTo(1, 3.4);
+        ctx.moveTo(6, -2.8); ctx.lineTo(6, 2.8);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (this.fishServeTimer > 0) {
+        const t = this.fishServeTimer / 0.95;
+        const alpha = Math.min(1, t * 4.5, (1 - t) * 7 + 0.15);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        ctx.translate(x - 24, y - 62);
+        ctx.rotate(0.45 + Math.sin(this.time * 16) * 0.04);
+        // Cute mini wooden salmon-serving board tilting to slide fish onto plate
+        ctx.fillStyle = night > 0.5 ? "#6E5D50" : "#E2C39D";
+        ctx.strokeStyle = night > 0.5 ? "#4C4038" : "#C3A17B";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(-18, -7, 36, 12, 5) : ctx.rect(-18, -7, 36, 12);
+        ctx.fill();
+        ctx.stroke();
+        // Cute handle tab on wooden board
+        ctx.fillRect(-25, -3.5, 8, 5);
+        ctx.restore();
+      }
 
       ctx.restore();
     }
