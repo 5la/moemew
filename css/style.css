@@ -389,6 +389,20 @@ body[data-cursor="laser"] .stage-canvas {
   transform: scale(0.95);
 }
 
+.dock-water-btn {
+  color: var(--ink-primary);
+  background: rgba(114, 192, 236, 0.18);
+}
+
+.dock-water-btn:hover {
+  background: rgba(114, 192, 236, 0.30);
+  transform: translateY(-1px);
+}
+
+.dock-water-btn:active {
+  transform: scale(0.95);
+}
+
 .dock-action-btn {
   color: var(--ink-primary);
   background: rgba(230, 138, 158, 0.14);
