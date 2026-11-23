@@ -1091,10 +1091,19 @@
       const bob = Math.sin(this.walkCycle * 2) * 2.2 * this.strideAmp;
       const sway = Math.cos(this.walkCycle) * 2.2 * this.strideAmp;
       const turn = clamp(Math.cos(this.moveHeading), -0.78, 0.78);
-      const rumpShift = -turn * 12;
-      const chestShift = turn * 7;
 
-      // 1. Smooth Continuous Blue-Grey Tail curving behind rump opposite the turn (zero flip, zero skull horn!)
+      // Smooth 3/4 parallax between rear blue-grey haunch and front snowy-white chest!
+      const rumpCx = -turn * 14 + sway * 0.45;
+      const rumpCy = -45 + bob * 0.85;
+      const rumpRx = 26.5;
+      const rumpRy = 23.0;
+
+      const chestCx = turn * 6.5 + sway * 0.6;
+      const chestCy = -43 + bob;
+      const chestRx = 24.5;
+      const chestRy = 22.0;
+
+      // 1. Smooth Continuous Blue-Grey Tail curving behind rump opposite the turn
       const tailWave = Math.sin(this.tailPhase) * 7;
       const tailSpan = -turn * 56;
       const tailLift = 26 + Math.abs(turn) * 28;
@@ -1103,11 +1112,11 @@
       ctx.strokeStyle = "#393E4C";
       ctx.lineWidth = 13.5;
       ctx.beginPath();
-      ctx.moveTo(rumpShift + sway * 0.5, -40 + bob);
+      ctx.moveTo(rumpCx, rumpCy + 4);
       ctx.bezierCurveTo(
-        rumpShift + tailSpan * 0.65, -44 + bob,
-        rumpShift + tailSpan * 1.05 + tailWave * 0.5, -44 - tailLift * 0.65 + bob,
-        rumpShift + tailSpan * 0.92 + tailWave, -44 - tailLift + bob
+        rumpCx + tailSpan * 0.65, rumpCy,
+        rumpCx + tailSpan * 1.05 + tailWave * 0.5, rumpCy - tailLift * 0.65,
+        rumpCx + tailSpan * 0.92 + tailWave, rumpCy - tailLift
       );
       ctx.stroke();
       ctx.strokeStyle = "#4B5263";
@@ -1115,88 +1124,132 @@
       ctx.stroke();
       ctx.restore();
 
-      // 2. Blue-Grey Hind Legs alternating softly behind the front shoulders (smooth yaw parallax)
+      // 2. SEAMLESS TWO-PASS BLUE-GREY HAUNCH + BOTH BLUE-GREY HIND LEGS!
+      // Both hind leg roots anchor deeply inside the plump blue-grey rump ellipse,
+      // and share one unified outline pass -> ZERO flat top cutoff & ZERO hip seam!
       const lHindLift = Math.max(0, Math.sin(this.walkCycle)) * 7.5 * this.strideAmp;
       const rHindLift = Math.max(0, -Math.sin(this.walkCycle)) * 7.5 * this.strideAmp;
-      this.drawFrontViewLeg(ctx, -19 + rumpShift + sway * 0.4, -36 + bob, -20 + rumpShift + sway * 0.3, -6 - lHindLift, true, "BL", outlineCol);
-      this.drawFrontViewLeg(ctx, 19 + rumpShift + sway * 0.4, -36 + bob, 20 + rumpShift + sway * 0.3, -6 - rHindLift, true, "BR", outlineCol);
+      const blTopX = rumpCx - 13.5;
+      const brTopX = rumpCx + 13.5;
+      const hindTopY = rumpCy + 6;
+      const blBotX = rumpCx - 15.0 + sway * 0.2;
+      const brBotX = rumpCx + 15.0 + sway * 0.2;
+      const blBotY = -5 - lHindLift;
+      const brBotY = -5 - rHindLift;
 
-      // 3. Plump Front-Facing Torso (Smoothly turns toward 3/4 as turn increases!)
-      const lFrontLift = Math.max(0, -Math.sin(this.walkCycle)) * 9.5 * this.strideAmp;
-      const rFrontLift = Math.max(0, Math.sin(this.walkCycle)) * 9.5 * this.strideAmp;
-      const torsoRx = 28 + Math.abs(turn) * 6;
-      const torsoCx = sway * 0.6 + turn * 2;
-
-      // Two-pass outline + seamless interior
+      // Pass 2A: Unified outer silhouette outline for [Rump + BL + BR]
       ctx.save();
       ctx.strokeStyle = outlineCol;
       ctx.lineWidth = 2.6;
       ctx.beginPath();
-      ctx.ellipse(torsoCx, -46 + bob, torsoRx, 25, 0, 0, Math.PI * 2);
+      ctx.ellipse(rumpCx, rumpCy, rumpRx, rumpRy, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
+      this.drawFrontViewLegOutline(ctx, blTopX, hindTopY, blBotX, blBotY, outlineCol, 8.6, 6.8);
+      this.drawFrontViewLegOutline(ctx, brTopX, hindTopY, brBotX, brBotY, outlineCol, 8.6, 6.8);
 
-      // Front Leg outlines before Torso Fill
-      this.drawFrontViewLegOutline(ctx, -12 + chestShift + sway * 0.5, -34 + bob, -12.5 + chestShift + sway * 0.3, -1 - lFrontLift, outlineCol);
-      this.drawFrontViewLegOutline(ctx, 12 + chestShift + sway * 0.5, -34 + bob, 12.5 + chestShift + sway * 0.3, -1 - rFrontLift, outlineCol);
+      // Pass 2B: Seamless solid #454B5A interior fill for [Rump + Both Hind Legs] + Snowy-White Paws!
+      ctx.fillStyle = "#454B5A";
+      ctx.beginPath();
+      ctx.ellipse(rumpCx, rumpCy, rumpRx, rumpRy, 0, 0, Math.PI * 2);
+      ctx.fill();
+      this.drawFrontViewLeg(ctx, blTopX, hindTopY, blBotX, blBotY, true, "BL", outlineCol, true, 8.6, 6.8);
+      this.drawFrontViewLeg(ctx, brTopX, hindTopY, brBotX, brBotY, true, "BR", outlineCol, true, 8.6, 6.8);
 
-      // Torso Fill (Blue-grey upper back & side rump + big snowy-white chest!)
+      // Subtle connecting saddle bridge between rump and chest so the blue-grey back merges seamlessly
+      ctx.fillStyle = "#454B5A";
+      ctx.beginPath();
+      ctx.ellipse((rumpCx + chestCx) * 0.5, -47 + bob, Math.abs(rumpCx - chestCx) * 0.5 + 16, 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 3. SEAMLESS TWO-PASS SNOWY-WHITE CHEST + BOTH FRONT LEGS!
+      const lFrontLift = Math.max(0, -Math.sin(this.walkCycle)) * 9.5 * this.strideAmp;
+      const rFrontLift = Math.max(0, Math.sin(this.walkCycle)) * 9.5 * this.strideAmp;
+      const frTopX = chestCx - 11.5;
+      const flTopX = chestCx + 11.5;
+      const frontTopY = chestCy + 7;
+      const frBotX = chestCx - 12.0 + sway * 0.2;
+      const flBotX = chestCx + 12.0 + sway * 0.2;
+      const frBotY = -1 - lFrontLift;
+      const flBotY = -1 - rFrontLift;
+
+      // Pass 3A: Unified outlines for [Chest + FR + FL]
+      ctx.save();
+      ctx.strokeStyle = outlineCol;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.ellipse(chestCx, chestCy, chestRx, chestRy, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      this.drawFrontViewLegOutline(ctx, frTopX, frontTopY, frBotX, frBotY, outlineCol);
+      this.drawFrontViewLegOutline(ctx, flTopX, frontTopY, flBotX, flBotY, outlineCol);
+
+      // Pass 3B: Seamless Chest Fill (blue-grey upper shoulders halo + big snowy-white chest)
       ctx.save();
       ctx.beginPath();
-      ctx.ellipse(torsoCx, -46 + bob, torsoRx, 25, 0, 0, Math.PI * 2);
+      ctx.ellipse(chestCx, chestCy, chestRx, chestRy, 0, 0, Math.PI * 2);
       ctx.clip();
       ctx.fillStyle = "#454B5A";
-      ctx.fillRect(-50, -80, 100, 72);
+      ctx.fillRect(chestCx - 36, chestCy - 34, 72, 68);
       ctx.fillStyle = "#FCFBF8";
       ctx.beginPath();
-      ctx.ellipse(chestShift + sway * 0.6, -39 + bob, 24, 21, 0, 0, Math.PI * 2);
+      ctx.ellipse(chestCx + turn * 2, chestCy + 5, 23.5, 20.5, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
-      // Front Legs Fill (FR white w/ spot on viewer's left; FL w/ grey sleeve on viewer's right!)
-      this.drawFrontViewLeg(ctx, -12 + chestShift + sway * 0.5, -34 + bob, -12.5 + chestShift + sway * 0.3, -1 - lFrontLift, false, "FR", outlineCol);
-      this.drawFrontViewLeg(ctx, 12 + chestShift + sway * 0.5, -34 + bob, 12.5 + chestShift + sway * 0.3, -1 - rFrontLift, false, "FL", outlineCol);
+      // Pass 3C: Seamless Front Legs Fill (FR white w/ spot on viewer's left; FL w/ grey sleeve on viewer's right!)
+      this.drawFrontViewLeg(ctx, frTopX, frontTopY, frBotX, frBotY, false, "FR", outlineCol, true);
+      this.drawFrontViewLeg(ctx, flTopX, frontTopY, flBotX, flBotY, false, "FL", outlineCol, true);
 
       // 4. Front-Facing Chubby Head turning continuously into the curve!
-      this.drawHead(ctx, chestShift * 1.45 + sway * 0.7, -77 + bob * 1.1, turn * 0.52, false);
+      this.drawHead(ctx, chestCx * 1.15 + turn * 4, -77 + bob * 1.1, turn * 0.52, false);
     }
 
-    drawFrontViewLegOutline(ctx, tx, ty, bx, by, outlineCol) {
+    traceFrontViewLegPath(ctx, tx, ty, bx, by, rTop = 7.8, rBot = 6.8) {
+      ctx.beginPath();
+      // Smooth rounded dome top cap so there is NEVER a sharp flat rectangular top corner!
+      ctx.moveTo(tx - rTop, ty);
+      ctx.quadraticCurveTo(tx, ty - rTop * 1.15, tx + rTop, ty);
+      ctx.lineTo(bx + rBot, by);
+      ctx.bezierCurveTo(bx + rBot + 0.4, by + 6.2, bx - rBot - 0.4, by + 6.2, bx - rBot, by);
+      ctx.closePath();
+    }
+
+    drawFrontViewLegOutline(ctx, tx, ty, bx, by, outlineCol, rTop = 7.8, rBot = 6.8) {
       ctx.save();
       ctx.strokeStyle = outlineCol;
       ctx.lineWidth = 2.6;
-      ctx.beginPath();
-      ctx.moveTo(tx - 7.8, ty);
-      ctx.lineTo(bx - 6.8, by);
-      ctx.bezierCurveTo(bx - 7.2, by + 6.2, bx + 7.2, by + 6.2, bx + 6.8, by);
-      ctx.lineTo(tx + 7.8, ty);
-      ctx.closePath();
+      ctx.lineJoin = "round";
+      this.traceFrontViewLegPath(ctx, tx, ty, bx, by, rTop, rBot);
       ctx.stroke();
       ctx.restore();
     }
 
-    drawFrontViewLeg(ctx, tx, ty, bx, by, isHind, legId, outlineCol) {
+    drawFrontViewLeg(ctx, tx, ty, bx, by, isHind, legId, outlineCol, skipOutline = false, rTop = 7.8, rBot = 6.8) {
       ctx.save();
-      if (isHind) {
-        this.drawFrontViewLegOutline(ctx, tx, ty, bx, by, outlineCol);
+      if (isHind && !skipOutline) {
+        this.drawFrontViewLegOutline(ctx, tx, ty, bx, by, outlineCol, rTop, rBot);
       }
-      ctx.beginPath();
-      ctx.moveTo(tx - 7.8, ty);
-      ctx.lineTo(bx - 6.8, by);
-      ctx.bezierCurveTo(bx - 7.2, by + 6.2, bx + 7.2, by + 6.2, bx + 6.8, by);
-      ctx.lineTo(tx + 7.8, ty);
-      ctx.closePath();
+      this.traceFrontViewLegPath(ctx, tx, ty, bx, by, rTop, rBot);
 
       ctx.save();
       ctx.clip();
       if (isHind) {
-        ctx.fillStyle = "#3E4452";
-        ctx.fillRect(tx - 15, ty - 6, 30, 46);
+        // Match exact #454B5A blue-grey rump color so hind legs blend seamlessly into the haunch!
+        ctx.fillStyle = "#454B5A";
+        ctx.fillRect(tx - 16, ty - rTop - 4, 32, Math.abs(by - ty) + rTop + 22);
+        // Snowy-white hind paw with soft curved ankle line
         ctx.fillStyle = "#F4F1EB";
-        ctx.fillRect(bx - 12, by - 4, 24, 15);
+        ctx.beginPath();
+        ctx.moveTo(bx - 12, by - 3.2);
+        ctx.quadraticCurveTo(bx, by - 5.2, bx + 12, by - 3.2);
+        ctx.lineTo(bx + 12, by + 12);
+        ctx.lineTo(bx - 12, by + 12);
+        ctx.closePath();
+        ctx.fill();
       } else {
         ctx.fillStyle = "#FCFBF8";
-        ctx.fillRect(tx - 15, ty - 6, 30, 46);
+        ctx.fillRect(tx - 16, ty - rTop - 4, 32, Math.abs(by - ty) + rTop + 22);
         if (legId === "FL") {
           ctx.fillStyle = "#454B5A";
           const cy = lerp(ty, by, 0.52);
@@ -1277,8 +1330,8 @@
       ctx.ellipse(rumpX, -44 + bob, rumpRx, 25, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
-      this.drawFrontViewLegOutline(ctx, -13 + rumpX, -32 + bob, -13.5 + rumpX * 0.7, -2 - lHindLift, outlineCol);
-      this.drawFrontViewLegOutline(ctx, 13 + rumpX, -32 + bob, 13.5 + rumpX * 0.7, -2 - rHindLift, outlineCol);
+      this.drawFrontViewLegOutline(ctx, -13 + rumpX, -35 + bob, -13.5 + rumpX * 0.7, -2 - lHindLift, outlineCol, 8.2, 6.8);
+      this.drawFrontViewLegOutline(ctx, 13 + rumpX, -35 + bob, 13.5 + rumpX * 0.7, -2 - rHindLift, outlineCol, 8.2, 6.8);
 
       // Pass 2: Seamless Solid #454B5A Rump & Both Blue-Grey Hind Legs -> Crisp White Paws!
       ctx.fillStyle = "#454B5A";
@@ -1288,16 +1341,11 @@
 
       const drawRearHindLeg = (tx, ty, bx, by, lifted) => {
         ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(tx - 8.2, ty);
-        ctx.lineTo(bx - 6.8, by);
-        ctx.bezierCurveTo(bx - 7.2, by + 6.2, bx + 7.2, by + 6.2, bx + 6.8, by);
-        ctx.lineTo(tx + 8.2, ty);
-        ctx.closePath();
+        this.traceFrontViewLegPath(ctx, tx, ty, bx, by, 8.2, 6.8);
         ctx.clip();
 
         ctx.fillStyle = "#454B5A";
-        ctx.fillRect(tx - 15, ty - 6, 30, 48);
+        ctx.fillRect(tx - 16, ty - 12, 32, 54);
         // Snowy white hind paw!
         ctx.fillStyle = "#FCFBF8";
         ctx.fillRect(bx - 12, by - 4.5, 24, 15);
@@ -1311,8 +1359,8 @@
         ctx.restore();
       };
 
-      drawRearHindLeg(-13 + rumpX, -32 + bob, -13.5 + rumpX * 0.7, -2 - lHindLift, lHindLift);
-      drawRearHindLeg(13 + rumpX, -32 + bob, 13.5 + rumpX * 0.7, -2 - rHindLift, rHindLift);
+      drawRearHindLeg(-13 + rumpX, -35 + bob, -13.5 + rumpX * 0.7, -2 - lHindLift, lHindLift);
+      drawRearHindLeg(13 + rumpX, -35 + bob, 13.5 + rumpX * 0.7, -2 - rHindLift, rHindLift);
 
       // 4. Center Swishing Blue-Grey Tail sweeping naturally with the turn!
       const tailW = Math.sin(this.tailPhase) * 14 - turn * 18;
