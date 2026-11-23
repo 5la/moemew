@@ -172,8 +172,9 @@
       });
     });
 
-    // 3. Minimalist Bottom Mode Dock (7 Modes + Instant Trick Button)
+    // 3. Minimalist Bottom Mode Dock (7 Modes + Instant Kibble Feed & Trick Buttons)
     const dockBtns = document.querySelectorAll(".dock-btn[data-mode]");
+    const feedKibbleBtn = document.getElementById("feed-kibble-btn");
     const trickBtn = document.getElementById("trick-btn");
 
     const MODE_HINTS = {
@@ -200,6 +201,14 @@
         if (MODE_HINTS[mode]) whisper(MODE_HINTS[mode]);
       });
     });
+
+    if (feedKibbleBtn) {
+      feedKibbleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        world.pourKibbleIntoBowl();
+        whisper("沙沙沙~ 往猫碗倒满香脆猫粮，小猫听见声音跑去干饭啦 🥣");
+      });
+    }
 
     if (trickBtn) {
       trickBtn.addEventListener("click", (e) => {
@@ -266,7 +275,7 @@
           if (propHit === "sofa") whisper("拍了拍软乎乎的奶油小沙发，小猫晃着尾巴走来啦");
           if (propHit === "basket_ball") whisper("从编织玩具篮里滚出了一颗小绒球 🧶");
           if (propHit === "basket_fish") whisper("从玩具篮里摸出一条藏着的香脆小鱼干 🐟");
-          if (propHit === "bowls") whisper("添上香脆小鱼粮，唤小猫过来开饭啦");
+          if (propHit === "bowls") whisper("沙沙沙~ 往猫碗添满香脆猫粮，小猫马上跑来埋头干饭啦 🥣");
           if (propHit === "bed") whisper("拍了拍软乎乎的小猫窝，过来歇会儿吧");
           if (propHit === "pompom") whisper("拨动了猫爬架上的小绒球 ♪");
           if (propHit === "sill") whisper("窗台上的热茶、多肉与小猫草正伴着微风轻晃");

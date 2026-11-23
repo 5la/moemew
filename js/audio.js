@@ -706,6 +706,54 @@
     }
 
     /**
+     * Crisp dry cat-kibble pellets rattling playfully into a ceramic bowl
+     */
+    playKibblePour() {
+      this.unlockAndPlay();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const pelletTimes = [0.02, 0.07, 0.11, 0.16, 0.20, 0.25, 0.31, 0.37, 0.44];
+      pelletTimes.forEach((offset, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "triangle";
+        const baseF = 1150 + ((idx * 173) % 620) + Math.random() * 140;
+        osc.frequency.setValueAtTime(baseF, now + offset);
+        osc.frequency.exponentialRampToValueAtTime(baseF * 0.55, now + offset + 0.035);
+
+        gain.gain.setValueAtTime(0.0001, now + offset);
+        gain.gain.linearRampToValueAtTime(0.095, now + offset + 0.004);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.042);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.048);
+
+        if (this.noiseBuffer && idx % 2 === 0) {
+          const src = this.ctx.createBufferSource();
+          src.buffer = this.noiseBuffer;
+          const filter = this.ctx.createBiquadFilter();
+          filter.type = "bandpass";
+          filter.frequency.value = 2600 + idx * 180;
+          filter.Q.value = 2.2;
+
+          const nGain = this.ctx.createGain();
+          nGain.gain.setValueAtTime(0.0001, now + offset);
+          nGain.gain.linearRampToValueAtTime(0.07, now + offset + 0.004);
+          nGain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.032);
+
+          src.connect(filter);
+          filter.connect(nGain);
+          nGain.connect(this.sfxGain);
+          src.start(now + offset);
+          src.stop(now + offset + 0.036);
+        }
+      });
+    }
+
+    /**
      * Soft boing for yarn ball bounce or cat grass wiggle
      */
     playBoing(pitchScale = 1) {

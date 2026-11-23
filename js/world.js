@@ -111,7 +111,9 @@
       this.basketToggle = 0;
       this.pomPomAngle = 0;
       this.pomPomVel = 0;
-      this.bowlFoodLevel = 0.7; // 0..1 kibble fullness
+      this.bowlFoodLevel = 0.25; // 0..1 kibble fullness inside left ceramic bowl
+      this.bowlPourTimer = 0;
+      this.kibbleDrops = [];
       this.grassWiggle = 0;
       this.useRealClock = false;
       this.clockMinutes = initT.clockBaseMin;
@@ -171,7 +173,7 @@
         if (this.pawPrints.length > 26) this.pawPrints.shift();
       };
 
-      // Wire playful cat events (e.g., reaching catnip triggers sparkly bliss!)
+      // Wire playful cat events (catnip bliss & crunching kibble at the cat bowl!)
       this.cat.onCatEvent = (ev) => {
         if (ev === "catnip_bliss") {
           let nearestIdx = -1;
@@ -190,6 +192,22 @@
           this.spawnHeart(this.cat.x, this.cat.y - 68 * s, 4);
           this.spawnSparkles(this.cat.x, this.cat.y - 38 * s, 12, ["#7DD48E", "#AEEBBA", "#F7A6BA", "#FFE28A"]);
           if (window.MoeAudio) window.MoeAudio.playLevelUp();
+        } else if (ev === "bowl_bite") {
+          const L = this.getRoomLayout();
+          const fx = L.bowls.x - 13;
+          const fy = L.bowls.y - 9;
+          this.bowlFoodLevel = Math.max(0.0, this.bowlFoodLevel - 0.14);
+          if (this.bowlFoodLevel <= 0.02) {
+            this.cat.stateTimer = Math.min(this.cat.stateTimer, 0.25);
+          }
+          this.spawnKibbleCrumbs(fx, fy, 4);
+          this.spawnHeart(this.cat.x + 18 * this.cat.getScale(), this.cat.y - 66 * this.cat.getScale(), 1);
+          if (window.MoeAudio) window.MoeAudio.playMunch();
+        } else if (ev === "bowl_done") {
+          const s = this.cat.getScale();
+          this.spawnHeart(this.cat.x + 8 * s, this.cat.y - 78 * s, 3);
+          this.spawnSparkles(this.cat.x + 14 * s, this.cat.y - 52 * s, 8, ["#F7A6BA", "#FFE28A", "#B7EFC5"]);
+          if (window.MoeAudio) window.MoeAudio.playMew("happy");
         }
       };
 
@@ -361,11 +379,9 @@
         return "basket_fish";
       }
 
-      // 2. Twin Ceramic Cat Bowls -> Refill crunchy kibble & call kitty over to eat!
-      if (Math.hypot(clientX - L.bowls.x, clientY - L.bowls.y) < 38) {
-        this.bowlFoodLevel = 1.0;
-        this.tossFish(L.bowls.x - 10, L.bowls.y + 14);
-        if (window.MoeAudio) window.MoeAudio.playMew("happy");
+      // 2. Twin Ceramic Cat Bowls -> Pour fresh crunchy cat kibble right into the bowl & call kitty to eat!
+      if (Math.hypot(clientX - L.bowls.x, clientY - L.bowls.y) < 42) {
+        this.pourKibbleIntoBowl();
         return "bowls";
       }
 
@@ -609,6 +625,55 @@
       this.cat.chaseCatnip(landX, landY);
     }
 
+    spawnKibbleCrumbs(x, y, count = 4) {
+      const cols = ["#C88449", "#DDA062", "#B26E35"];
+      for (let i = 0; i < count; i++) {
+        this.particles.push({
+          type: "crumb",
+          x: x + (Math.random() - 0.5) * 10,
+          y: y + (Math.random() - 0.5) * 4,
+          vx: (Math.random() - 0.5) * 52,
+          vy: -38 - Math.random() * 44,
+          size: 2.0 + Math.random() * 1.4,
+          color: cols[i % cols.length],
+          life: 1.0,
+          decay: 1.9
+        });
+      }
+    }
+
+    /**
+     * Pour a lively cascade of crunchy cat kibble pellets right into the left ceramic cat bowl,
+     * visually filling the bowl and calling kitty over to crouch & crunch away!
+     */
+    pourKibbleIntoBowl() {
+      const L = this.getRoomLayout();
+      const fx = L.bowls.x - 13;
+      const fy = L.bowls.y - 9;
+
+      this.bowlPourTimer = 0.96;
+      this.spawnRipple(L.bowls.x, L.bowls.y + 2);
+
+      const cols = ["#C98245", "#B36C33", "#DC9D5D", "#A5602B"];
+      for (let i = 0; i < 18; i++) {
+        this.kibbleDrops.push({
+          x: fx - 14 + (Math.random() - 0.5) * 5,
+          y: fy - 42 + (Math.random() - 0.5) * 4,
+          vx: 26 + (Math.random() - 0.5) * 18,
+          vy: 15 + Math.random() * 20,
+          targetX: fx + (Math.random() - 0.5) * 10,
+          targetY: fy - 1 + (Math.random() - 0.5) * 2.5,
+          r: 2.2 + Math.random() * 1.0,
+          rot: Math.random() * Math.PI,
+          color: cols[i % cols.length],
+          delay: i * 0.026
+        });
+      }
+
+      if (window.MoeAudio) window.MoeAudio.playKibblePour();
+      this.cat.goToBowl(fx, L.bowls.y);
+    }
+
     tossFish(targetX, targetY) {
       const b = this.cat.getFloorBounds();
       const landX = Math.max(b.minX + 14, Math.min(b.maxX - 14, targetX));
@@ -708,6 +773,31 @@
 
       if (this.grassWiggle > 0) {
         this.grassWiggle = Math.max(0, this.grassWiggle - dt * 1.8);
+      }
+
+      // Pouring cat kibble pouch & falling crunchy pellets into the food bowl
+      if (this.bowlPourTimer > 0) {
+        this.bowlPourTimer = Math.max(0, this.bowlPourTimer - dt);
+      }
+      for (let i = this.kibbleDrops.length - 1; i >= 0; i--) {
+        const k = this.kibbleDrops[i];
+        if (k.delay > 0) {
+          k.delay -= dt;
+          continue;
+        }
+        k.vy += 560 * dt;
+        k.x += k.vx * dt;
+        k.y += k.vy * dt;
+        k.rot += dt * 9;
+        // Gently funnel pellets toward the ceramic food bowl mouth
+        k.x += (k.targetX - k.x) * Math.min(1, dt * 4.5);
+        if (k.y >= k.targetY) {
+          this.bowlFoodLevel = Math.min(1.0, this.bowlFoodLevel + 0.068);
+          if (Math.random() < 0.35) {
+            this.spawnKibbleCrumbs(k.targetX, k.targetY, 1);
+          }
+          this.kibbleDrops.splice(i, 1);
+        }
       }
 
       // Window clouds, daytime gliding birds & night shooting star
@@ -1139,6 +1229,7 @@
 
       for (let i = this.particles.length - 1; i >= 0; i--) {
         const p = this.particles[i];
+        if (p.type === "crumb") p.vy += 260 * dt;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.life -= p.decay * dt;
@@ -1355,6 +1446,11 @@
           ctx.fillStyle = night > 0.5 ? "rgba(218, 224, 255, 0.72)" : "rgba(125, 114, 108, 0.52)";
           ctx.font = `600 ${Math.round(p.size)}px sans-serif`;
           ctx.fillText(p.text, 0, 0);
+        } else if (p.type === "crumb") {
+          ctx.fillStyle = p.color || "#C88449";
+          ctx.beginPath();
+          ctx.ellipse(0, 0, p.size, p.size * 0.78, 0.3, 0, Math.PI * 2);
+          ctx.fill();
         }
         ctx.restore();
       }
@@ -2686,12 +2782,117 @@
       ctx.roundRect ? ctx.roundRect(-28, -3, 56, 8, 4) : ctx.rect(-28, -3, 56, 8);
       ctx.fill();
 
-      // Left Bowl: Crunchy Cat Food Bowl
-      this.drawSingleBowl(ctx, -13, -3, "#F5EFE6", "#C88A56", this.bowlFoodLevel > 0.1, night);
-      // Right Bowl: Fresh Water Bowl
+      // Left Bowl: Crunchy Cat Food Bowl (with dynamic heaped 3D kibble nuggets!)
+      this.drawSingleBowl(ctx, -13, -3, "#F5EFE6", "#C88A56", false, night);
+      this.drawKibbleMound(ctx, -13, -8.5, this.bowlFoodLevel);
+
+      // Right Bowl: Fresh Water Bowl with gentle animated shimmer
       this.drawSingleBowl(ctx, 13, -3, "#F5EFE6", "#9ED4F0", true, night);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(13, -8.5, 4.5, 0.4 + Math.sin(this.time * 2.2) * 0.2, 1.8);
+      ctx.stroke();
 
       ctx.restore();
+
+      // Falling kibble pellets & cute tilted pouring pouch right above the food bowl!
+      if (this.kibbleDrops.length > 0 || this.bowlPourTimer > 0) {
+        this.drawKibblePourOverlay(ctx, bowls, night);
+      }
+    }
+
+    drawKibbleMound(ctx, bx, by, level) {
+      if (level <= 0.03) return;
+      ctx.save();
+      ctx.translate(bx, by);
+      const moundH = 1.2 + level * 5.2;
+
+      // Soft warm kibble base pile inside bowl rim
+      ctx.fillStyle = "#B66E35";
+      ctx.beginPath();
+      ctx.ellipse(0, 0.4, 8.2 * Math.min(1, 0.55 + level * 0.5), 2.6 + level * 1.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Individual textured crunchy kibble nuggets forming a cute little mountain!
+      const nuggets = [
+        { ox: -5.2, oy: 0.2, r: 2.1, c: "#C98245", min: 0.05 },
+        { ox: 0.0,  oy: 0.6, r: 2.2, c: "#B36C33", min: 0.05 },
+        { ox: 5.0,  oy: 0.1, r: 2.0, c: "#DC9D5D", min: 0.08 },
+        { ox: -3.2, oy: -1.1, r: 2.1, c: "#DC9D5D", min: 0.20 },
+        { ox: 2.8,  oy: -1.0, r: 2.1, c: "#C98245", min: 0.24 },
+        { ox: -0.3, oy: -1.8, r: 2.2, c: "#B66E35", min: 0.35 },
+        { ox: -4.2, oy: -2.0, r: 1.9, c: "#B36C33", min: 0.48 },
+        { ox: 3.9,  oy: -2.1, r: 1.9, c: "#DC9D5D", min: 0.55 },
+        { ox: -1.8, oy: -moundH * 0.62, r: 2.1, c: "#C98245", min: 0.66 },
+        { ox: 1.8,  oy: -moundH * 0.65, r: 2.0, c: "#B36C33", min: 0.74 },
+        { ox: 0.0,  oy: -moundH * 0.92, r: 2.1, c: "#E2A769", min: 0.84 }
+      ];
+      for (const n of nuggets) {
+        if (level < n.min) continue;
+        ctx.fillStyle = n.c;
+        ctx.beginPath();
+        ctx.ellipse(n.ox, n.oy, n.r, n.r * 0.76, 0.25, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    drawKibblePourOverlay(ctx, bowls, night) {
+      // 1. Falling crunchy kibble nuggets
+      for (const k of this.kibbleDrops) {
+        if (k.delay > 0) continue;
+        ctx.save();
+        ctx.translate(k.x, k.y);
+        ctx.rotate(k.rot);
+        ctx.fillStyle = k.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, k.r, k.r * 0.76, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // 2. Cute Floating Tilted Cat-Food Pouch pouring above the left bowl!
+      if (this.bowlPourTimer > 0) {
+        const t = this.bowlPourTimer / 0.96;
+        const alpha = Math.min(1, t * 4.5, (1 - t) * 7 + 0.15);
+        const shake = Math.sin(this.time * 28) * 0.06;
+        const px = bowls.x - 36;
+        const py = bowls.y - 62;
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        ctx.translate(px, py);
+        ctx.rotate(0.78 + shake);
+
+        // Cream & coral cat-food bag body
+        ctx.fillStyle = night > 0.5 ? "#D4C6B4" : "#FFF6E9";
+        ctx.strokeStyle = night > 0.5 ? "#7C6E60" : "#D4B896";
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(-14, -18, 28, 34, 6) : ctx.rect(-14, -18, 28, 34);
+        ctx.fill();
+        ctx.stroke();
+
+        // Warm peach-coral label band + cute paw print icon on bag
+        ctx.fillStyle = "#F09CB0";
+        ctx.fillRect(-13, -4, 26, 13);
+        ctx.fillStyle = "#FFFDF9";
+        ctx.beginPath();
+        ctx.arc(0, 3.2, 2.5, 0, Math.PI * 2);
+        ctx.arc(-3.2, 0.2, 1.2, 0, Math.PI * 2);
+        ctx.arc(0, -0.8, 1.2, 0, Math.PI * 2);
+        ctx.arc(3.2, 0.2, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Open pouring spout notch at bottom-right corner
+        ctx.fillStyle = "#B66E35";
+        ctx.beginPath();
+        ctx.ellipse(0, 16, 7, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
     }
 
     drawSingleBowl(ctx, bx, by, rimCol, innerCol, hasFill, night) {
