@@ -103,6 +103,12 @@
       // Interactive Room Prop States
       this.lampOn = false;
       this.lampGlow = 0.0;
+      this.fairyLightsOn = false;
+      this.fairyGlow = 0.0;
+      this.sofaBounce = 0.0;
+      this.vinylAngle = 0.0;
+      this.vinylNoteTimer = 1.8;
+      this.basketToggle = 0;
       this.pomPomAngle = 0;
       this.pomPomVel = 0;
       this.bowlFoodLevel = 0.7; // 0..1 kibble fullness
@@ -119,15 +125,20 @@
       this.particles = [];
       this.motes = [];
       this.clouds = [
-        { rx: 0.18, ry: 0.28, s: 1.0, speed: 0.012 },
-        { rx: 0.68, ry: 0.48, s: 0.78, speed: 0.008 }
+        { rx: 0.18, ry: 0.26, s: 0.96, speed: 0.011 },
+        { rx: 0.68, ry: 0.42, s: 0.74, speed: 0.008 }
       ];
+      this.windowBirds = [
+        { rx: -0.14, ry: 0.24, speed: 0.048, phase: 0.0 },
+        { rx: -0.22, ry: 0.30, speed: 0.048, phase: 1.5 }
+      ];
+      this.shootingStar = { active: false, rx: 0.18, ry: 0.16, vx: 0.58, vy: 0.24, life: 0, timer: 4.5 };
       this.windowStars = [];
-      for (let i = 0; i < 18; i++) {
+      for (let i = 0; i < 20; i++) {
         this.windowStars.push({
-          rx: 0.08 + Math.random() * 0.84,
-          ry: 0.08 + Math.random() * 0.68,
-          r: 0.8 + Math.random() * 1.2,
+          rx: 0.06 + Math.random() * 0.88,
+          ry: 0.08 + Math.random() * 0.62,
+          r: 0.8 + Math.random() * 1.25,
           phase: Math.random() * Math.PI * 2
         });
       }
@@ -220,22 +231,35 @@
       const compact = w < 680;
       const horizonY = Math.round(Math.max(155, Math.min(h * 0.36, 360)));
 
-      // Sunlit Picture Window
-      const winW = compact ? Math.min(w * 0.58, 250) : Math.min(w * 0.30, 420);
-      const winH = Math.min(horizonY * 0.68, 205);
-      const winX = compact ? w * 0.5 - winW * 0.5 : w * 0.36 - winW * 0.5;
+      // Sunlit Picture Window (Left-Center)
+      const winW = compact ? Math.min(w * 0.58, 250) : Math.min(w * 0.27, 370);
+      const winH = Math.min(horizonY * 0.68, 200);
+      const winX = compact ? w * 0.5 - winW * 0.5 : w * 0.315 - winW * 0.5;
       const winY = Math.max(44, horizonY - winH - 36);
 
-      // Wall Clock & Framed Kitty Art (Right of Window on Desktop)
-      const clockX = compact ? Math.min(w - 42, winX + winW + 34) : w * 0.63;
-      const clockY = winY + winH * 0.30;
+      // Cozy Cream Linen Loveseat Sofa (Center-Right against Back Wall)
+      const sofaW = compact ? 0 : Math.min(205, Math.max(145, w * 0.165));
+      const sofaX = compact ? -999 : w * 0.575;
+      const sofaY = horizonY + 14;
 
-      // Left Cat Condo & Scratching Post (Near Back Wall)
-      const condoX = compact ? Math.max(44, w * 0.13) : Math.max(115, w * 0.14);
-      const condoY = horizonY + 8;
+      // Gallery Wall: Wall Clock & Framed Art (Curated cleanly above Sofa on Desktop)
+      const clockX = compact ? Math.min(w - 42, winX + winW + 34) : sofaX - sofaW * 0.34;
+      const clockY = compact ? winY + winH * 0.30 : Math.max(54, winY + winH * 0.24);
+
+      // Floating Oak Wall Shelf with Books & Trailing Pothos Ivy (Right Wall)
+      const shelfX = compact ? -999 : w * 0.785;
+      const shelfY = Math.max(76, winY + winH * 0.38);
+
+      // Retro Oak Side Table + Spinning Vinyl Turntable (Right of Sofa)
+      const turntableX = compact ? -999 : w * 0.74;
+      const turntableY = horizonY + 15;
+
+      // Left Multi-Tier Cat Condo & Scratching Post (Near Left Back Wall)
+      const condoX = compact ? Math.max(44, w * 0.13) : Math.max(92, w * 0.105);
+      const condoY = horizonY + 10;
 
       // Cozy Cat Bed Cushion (Left-Mid Back Floor)
-      const bedX = compact ? w * 0.24 : w * 0.24;
+      const bedX = compact ? w * 0.24 : w * 0.22;
       const bedY = horizonY + Math.min(54, h * 0.075);
 
       // Center Woven Area Rug (Flat on Floor — Kitty roams right across it!)
@@ -244,24 +268,32 @@
       const rugRx = compact ? w * 0.36 : Math.min(w * 0.26, 360);
       const rugRy = Math.min((h - horizonY) * 0.22, 92);
 
-      // Right Floor Lamp & Potted Plant (Near Right Back Wall)
-      const lampX = compact ? w - 48 : Math.min(w - 120, w * 0.86);
-      const lampY = horizonY + 12;
-      const plantX = compact ? -999 : lampX - 72;
+      // Woven Cat-Toy Basket (Left-Front Side of Rug, Desktop)
+      const basketX = compact ? -999 : Math.max(76, rugX - rugRx - 48);
+      const basketY = rugY + 14;
+
+      // Right Floor Lamp & Lush Potted Plant (Near Right Back Wall)
+      const lampX = compact ? w - 48 : Math.min(w - 64, w * 0.905);
+      const lampY = horizonY + 14;
+      const plantX = compact ? -999 : w * 0.835;
       const plantY = horizonY + 16;
 
       // Twin Ceramic Cat Food & Water Bowls (Right-Mid Back Floor)
-      const bowlsX = compact ? w * 0.77 : w * 0.75;
-      const bowlsY = horizonY + Math.min(52, h * 0.072);
+      const bowlsX = compact ? w * 0.77 : w * 0.79;
+      const bowlsY = horizonY + Math.min(54, h * 0.074);
 
       return {
         compact,
         horizonY,
         win: { x: winX, y: winY, w: winW, h: winH },
-        clock: { x: clockX, y: clockY, r: compact ? 16 : 22 },
+        sofa: { x: sofaX, y: sofaY, w: sofaW },
+        clock: { x: clockX, y: clockY, r: compact ? 16 : 21 },
+        shelf: { x: shelfX, y: shelfY },
+        turntable: { x: turntableX, y: turntableY },
         condo: { x: condoX, y: condoY },
         bed: { x: bedX, y: bedY, rx: compact ? 32 : 42, ry: compact ? 15 : 19 },
         rug: { x: rugX, y: rugY, rx: rugRx, ry: rugRy },
+        basket: { x: basketX, y: basketY },
         lamp: { x: lampX, y: lampY, shadeY: lampY - (compact ? 108 : 138) },
         plant: { x: plantX, y: plantY },
         bowls: { x: bowlsX, y: bowlsY }
@@ -275,6 +307,10 @@
       if (Math.hypot(clientX - L.bowls.x, clientY - L.bowls.y) < 38) return true;
       if (Math.hypot(clientX - L.bed.x, (clientY - L.bed.y) * 1.6) < L.bed.rx + 8) return true;
       if (Math.hypot(clientX - (L.condo.x + 26), clientY - (L.condo.y - 52)) < 28) return true;
+      if (!L.compact && Math.abs(clientX - L.sofa.x) < L.sofa.w * 0.5 && clientY > L.sofa.y - 72 && clientY < L.sofa.y + 8) return true;
+      if (!L.compact && Math.hypot(clientX - L.turntable.x, clientY - (L.turntable.y - 36)) < 32) return true;
+      if (!L.compact && Math.hypot(clientX - L.basket.x, clientY - (L.basket.y - 10)) < 28) return true;
+      if (Math.abs(clientY - (L.win.y - 2)) < 18 && clientX > L.win.x - 16 && clientX < L.win.x + L.win.w + 16) return true;
       const sillY = L.win.y + L.win.h;
       if (Math.abs(clientY - (sillY - 12)) < 24 && clientX > L.win.x && clientX < L.win.x + L.win.w) return true;
       return false;
@@ -286,10 +322,17 @@
     interactRoomProp(clientX, clientY) {
       const L = this.getRoomLayout();
 
-      // 0. Wall Clock -> Cycle scene time of day (Morning -> Dusk -> Night)!
+      // 0. Wall Clock -> Cycle scene time of day (Auto -> Morning -> Dusk -> Night)!
       if (Math.hypot(clientX - L.clock.x, clientY - L.clock.y) < L.clock.r + 8) {
         if (window.MoeAudio) window.MoeAudio.playBell();
         return "clock";
+      }
+
+      // 0B. Window Curtain Rod Fairy String Lights -> Toggle twinkling fairy lights!
+      if (Math.abs(clientY - (L.win.y - 2)) < 18 && clientX > L.win.x - 16 && clientX < L.win.x + L.win.w + 16) {
+        this.fairyLightsOn = !this.fairyLightsOn;
+        if (window.MoeAudio) window.MoeAudio.playBell();
+        return this.fairyLightsOn ? "fairy_on" : "fairy_off";
       }
 
       // 1. Floor Lamp Shade / Switch -> Toggle warm cozy lamp!
@@ -297,6 +340,25 @@
         this.lampOn = !this.lampOn;
         if (window.MoeAudio) window.MoeAudio.playBoing(this.lampOn ? 1.25 : 0.9);
         return this.lampOn ? "lamp_on" : "lamp_off";
+      }
+
+      // 1B. Retro Vinyl Turntable -> Toggle / switch BGM with floating musical notes!
+      if (!L.compact && Math.hypot(clientX - L.turntable.x, clientY - (L.turntable.y - 36)) < 32) {
+        this.spawnNote(L.turntable.x, L.turntable.y - 54);
+        this.spawnSparkles(L.turntable.x, L.turntable.y - 46, 6, ["#F4AABB", "#FFE28A", "#B6DDF2"]);
+        return "vinyl";
+      }
+
+      // 1C. Woven Cat-Toy Basket -> Toss out a surprise toy!
+      if (!L.compact && Math.hypot(clientX - L.basket.x, clientY - (L.basket.y - 10)) < 28) {
+        this.basketToggle = (this.basketToggle + 1) % 2;
+        if (this.basketToggle === 1) {
+          this.spawnBall(L.basket.x + 26, L.basket.y + 4, 240, -40);
+          return "basket_ball";
+        }
+        this.tossFish(L.basket.x + 95, L.basket.y + 18);
+        if (window.MoeAudio) window.MoeAudio.playBoing(1.25);
+        return "basket_fish";
       }
 
       // 2. Twin Ceramic Cat Bowls -> Refill crunchy kibble & call kitty over to eat!
@@ -315,6 +377,15 @@
         return "bed";
       }
 
+      // 3B. Cozy Cream Sofa -> Bounce soft pillows & invite kitty to lounge nearby!
+      if (!L.compact && Math.abs(clientX - L.sofa.x) < L.sofa.w * 0.5 && clientY > L.sofa.y - 72 && clientY < L.sofa.y + 8) {
+        this.sofaBounce = 1.0;
+        this.spawnHeart(clientX, L.sofa.y - 58, 2);
+        this.cat.callTo(L.sofa.x, L.sofa.y + 34);
+        if (window.MoeAudio) window.MoeAudio.playMew("sweet");
+        return "sofa";
+      }
+
       // 4. Scratching Post Pom-Pom Toy -> Swing it & attract kitty's gaze!
       const pomX = L.condo.x + 26;
       const pomY = L.condo.y - 52;
@@ -325,7 +396,7 @@
         return "pompom";
       }
 
-      // 5. Window Sill Cat Grass or Steaming Mug
+      // 5. Window Sill Cat Grass, Succulent or Steaming Mug
       const sillY = L.win.y + L.win.h;
       if (Math.abs(clientY - (sillY - 12)) < 24 && clientX > L.win.x && clientX < L.win.x + L.win.w) {
         this.grassWiggle = 1.0;
@@ -344,6 +415,7 @@
       this.useRealClock = Boolean(useRealClock);
       const target = THEME_TARGETS[theme] || THEME_TARGETS.day;
       this.lampOn = target.defaultLamp;
+      this.fairyLightsOn = target.defaultLamp;
 
       let nextMin = target.clockBaseMin;
       if (typeof clockMinutes === "number") {
@@ -364,6 +436,7 @@
         this.pal.sunPatchAlpha = target.sunPatchAlpha;
         this.pal.nightFactor = target.nightFactor;
         this.lampGlow = this.lampOn ? 1 : 0;
+        this.fairyGlow = this.fairyLightsOn ? 1 : 0;
         this.clockMinutes = nextMin;
         this.targetClockMinutes = nextMin;
         return;
@@ -600,6 +673,21 @@
       this.pal.nightFactor += (tPal.nightFactor - this.pal.nightFactor) * cRate;
 
       this.lampGlow += ((this.lampOn ? 1 : 0) - this.lampGlow) * (1 - Math.exp(-6 * dt));
+      this.fairyGlow += ((this.fairyLightsOn ? 1 : 0) - this.fairyGlow) * (1 - Math.exp(-5.5 * dt));
+      if (this.sofaBounce > 0) this.sofaBounce = Math.max(0, this.sofaBounce - dt * 3.2);
+
+      // Spin retro vinyl record gently when BGM is playing!
+      const isMusicOn = Boolean(window.MoeAudio && window.MoeAudio.isPlaying);
+      if (isMusicOn) {
+        this.vinylAngle += dt * 2.4;
+        this.vinylNoteTimer -= dt;
+        if (this.vinylNoteTimer <= 0) {
+          this.vinylNoteTimer = 2.6 + Math.random() * 2.0;
+          const L = this.getRoomLayout();
+          if (!L.compact) this.spawnNote(L.turntable.x + (Math.random() - 0.5) * 14, L.turntable.y - 54);
+        }
+      }
+
       if (this.useRealClock) {
         const now = new Date();
         const liveMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
@@ -622,10 +710,38 @@
         this.grassWiggle = Math.max(0, this.grassWiggle - dt * 1.8);
       }
 
-      // Window clouds drift
+      // Window clouds, daytime gliding birds & night shooting star
       for (const c of this.clouds) {
         c.rx += c.speed * dt;
         if (c.rx > 1.22) c.rx = -0.22;
+      }
+      for (const b of this.windowBirds) {
+        b.rx += b.speed * dt;
+        b.phase += dt * 7.5;
+        if (b.rx > 1.35) {
+          b.rx = -0.25 - Math.random() * 0.45;
+          b.ry = 0.18 + Math.random() * 0.24;
+        }
+      }
+      const ss = this.shootingStar;
+      if (this.pal.nightFactor > 0.6) {
+        if (!ss.active) {
+          ss.timer -= dt;
+          if (ss.timer <= 0) {
+            ss.active = true;
+            ss.rx = 0.14 + Math.random() * 0.42;
+            ss.ry = 0.10 + Math.random() * 0.22;
+            ss.life = 1.0;
+            ss.timer = 7.5 + Math.random() * 7.0;
+          }
+        } else {
+          ss.rx += ss.vx * dt;
+          ss.ry += ss.vy * dt;
+          ss.life -= dt * 1.45;
+          if (ss.life <= 0) ss.active = false;
+        }
+      } else {
+        ss.active = false;
       }
 
       // 1. Update Feather Ribbon Wand
@@ -1081,17 +1197,21 @@
       ctx.stroke();
       ctx.restore();
 
-      // Clean Minimalist Wooden Baseboard ("踢脚线")
+      // Clean Minimalist Wooden Baseboard ("踢脚线") + Subtle Wainscoting Wall Molding
+      this.drawWallWainscoting(ctx, w, L.horizonY, night);
+
       ctx.fillStyle = rgbStr(this.pal.baseboard);
       ctx.fillRect(0, L.horizonY - 9, w, 9);
       ctx.fillStyle = night > 0.5 ? "rgba(0, 0, 0, 0.28)" : "rgba(125, 105, 85, 0.12)";
       ctx.fillRect(0, L.horizonY - 1, w, 2);
 
-      // 2. Back-Wall Cozy Living Scene (Window, Clock & Framed Art)
+      // 2. Back-Wall Cozy Living Scene (Cat Steps, Window + Fairy Lights, Gallery Wall & Floating Shelf)
+      this.drawWallCatSteps(ctx, L, night);
       this.drawSunlitWindow(ctx, L.win, night);
       this.drawClockAndFrames(ctx, L, night);
+      this.drawWallShelf(ctx, L, night);
 
-      // 3. Floor-Level Flat Rug, Owner's Reading Book & Slanted Window Light Patch (Underneath Kitty!)
+      // 3. Floor-Level Flat Rug, Owner's Reading Corner & Slanted Window Light Patch (Underneath Kitty!)
       this.drawCozyRug(ctx, L.rug, night);
       this.drawReadingCorner(ctx, L, night);
       this.drawWindowFloorLight(ctx, L, night);
@@ -1132,12 +1252,21 @@
       // 5. 2.5D Depth-Sorted Living Room Props + Cat + Toys!
       const renderQueue = [];
       renderQueue.push({ y: L.condo.y, draw: () => this.drawCatCondo(ctx, L.condo, night) });
+      if (!L.compact && L.sofa.w > 0) {
+        renderQueue.push({ y: L.sofa.y, draw: () => this.drawCozySofa(ctx, L.sofa, night) });
+      }
+      if (!L.compact && L.turntable.x > 0) {
+        renderQueue.push({ y: L.turntable.y, draw: () => this.drawVinylTurntable(ctx, L.turntable, night) });
+      }
       if (L.plant.x > 0) {
         renderQueue.push({ y: L.plant.y, draw: () => this.drawPottedPlant(ctx, L.plant, night) });
       }
       renderQueue.push({ y: L.lamp.y, draw: () => this.drawFloorLamp(ctx, L.lamp, night) });
       renderQueue.push({ y: L.bed.y - 6, draw: () => this.drawCatBed(ctx, L.bed, night) });
       renderQueue.push({ y: L.bowls.y, draw: () => this.drawCatBowls(ctx, L.bowls, night) });
+      if (!L.compact && L.basket.x > 0) {
+        renderQueue.push({ y: L.basket.y, draw: () => this.drawToyBasket(ctx, L.basket, night) });
+      }
 
       renderQueue.push({ y: this.cat.y, draw: () => this.cat.render(ctx) });
 
@@ -1233,6 +1362,68 @@
 
     // --- Living Room Scene Component Renderers ---
 
+    drawWallWainscoting(ctx, w, horizonY, night) {
+      const railY = horizonY - 62;
+      if (railY < 40) return;
+      ctx.save();
+      // Soft lower wall tint & horizontal chair rail molding
+      ctx.fillStyle = night > 0.5 ? "rgba(255, 255, 255, 0.025)" : "rgba(186, 166, 142, 0.09)";
+      ctx.fillRect(0, railY, w, horizonY - railY);
+
+      ctx.strokeStyle = night > 0.5 ? "rgba(255, 255, 255, 0.055)" : "rgba(176, 152, 126, 0.20)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, railY);
+      ctx.lineTo(w, railY);
+      ctx.stroke();
+
+      // Delicate vertical wainscoting panel seams
+      ctx.strokeStyle = night > 0.5 ? "rgba(255, 255, 255, 0.032)" : "rgba(176, 152, 126, 0.13)";
+      ctx.lineWidth = 1;
+      const step = 120;
+      ctx.beginPath();
+      for (let x = 60; x < w; x += step) {
+        ctx.moveTo(x, railY + 5);
+        ctx.lineTo(x, horizonY - 12);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawWallCatSteps(ctx, L, night) {
+      if (L.compact) return;
+      const { condo, horizonY } = L;
+      ctx.save();
+      const wood = night > 0.5 ? "#574D47" : "#D9BE9D";
+      const pad = night > 0.5 ? "#5F6480" : "#F7F1E7";
+      const bracket = night > 0.5 ? "#433C38" : "#BA9D7B";
+
+      const steps = [
+        { x: condo.x - 16, y: horizonY - 116, w: 46 },
+        { x: condo.x + 28, y: horizonY - 148, w: 50 }
+      ];
+      for (const st of steps) {
+        // Wall shadow
+        ctx.fillStyle = night > 0.5 ? "rgba(0,0,0,0.22)" : "rgba(110, 92, 74, 0.10)";
+        ctx.fillRect(st.x - st.w * 0.5 + 2, st.y + 4, st.w, 6);
+        // Cute L brackets
+        ctx.fillStyle = bracket;
+        ctx.fillRect(st.x - st.w * 0.34, st.y + 6, 4, 8);
+        ctx.fillRect(st.x + st.w * 0.34 - 4, st.y + 6, 4, 8);
+        // Oak plank
+        ctx.fillStyle = wood;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(st.x - st.w * 0.5, st.y, st.w, 7, 3) : ctx.rect(st.x - st.w * 0.5, st.y, st.w, 7);
+        ctx.fill();
+        // Soft fleece cushion strip on top
+        ctx.fillStyle = pad;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(st.x - st.w * 0.42, st.y - 2.5, st.w * 0.84, 3.5, 2) : ctx.rect(st.x - st.w * 0.42, st.y - 2.5, st.w * 0.84, 3.5);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     drawSunlitWindow(ctx, win, night) {
       const { x, y, w, h } = win;
       ctx.save();
@@ -1249,32 +1440,68 @@
       ctx.fillStyle = skyGrad;
       ctx.fillRect(x, y, w, h);
 
-      // Night stars & crescent moon inside window
-      if (night > 0.15) {
+      // Morning warm sun glow OR Dusk glowing setting sun dipping behind hills!
+      if (night < 0.65) {
+        const isDusk = this.theme === "dusk";
+        const sunX = isDusk ? x + w * 0.68 : x + w * 0.24;
+        const sunY = isDusk ? y + h * 0.66 : y + h * 0.24;
+        const sunHalo = ctx.createRadialGradient(sunX, sunY, 4, sunX, sunY, isDusk ? 46 : 38);
+        sunHalo.addColorStop(0, isDusk ? "rgba(255, 214, 154, 0.78)" : "rgba(255, 250, 214, 0.72)");
+        sunHalo.addColorStop(1, "rgba(255, 232, 180, 0)");
+        ctx.fillStyle = sunHalo;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, isDusk ? 46 : 38, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = isDusk ? "#FFD59A" : "#FFF8D4";
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, isDusk ? 14 : 11, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Night stars, glowing full moon & occasional shooting star (Night only — never collides with Dusk sunset sun!)
+      if (night > 0.52) {
+        const starVis = Math.min(1, (night - 0.52) / 0.42);
         for (const s of this.windowStars) {
           const tw = 0.3 + 0.7 * Math.abs(Math.sin(this.time * 1.6 + s.phase));
-          ctx.fillStyle = `rgba(255, 250, 224, ${(night * tw * 0.85).toFixed(3)})`;
+          ctx.fillStyle = `rgba(255, 250, 224, ${(starVis * tw * 0.88).toFixed(3)})`;
           ctx.beginPath();
           ctx.arc(x + s.rx * w, y + s.ry * h, s.r, 0, Math.PI * 2);
           ctx.fill();
         }
-        // Soft Glowing Full Moon inside Night Window
-        const mx = x + w * 0.74;
-        const my = y + h * 0.28;
-        ctx.fillStyle = `rgba(255, 241, 182, ${(night * 0.22).toFixed(2)})`;
+        // Soft Glowing Full Moon
+        const mx = x + w * 0.76;
+        const my = y + h * 0.26;
+        ctx.fillStyle = `rgba(255, 241, 182, ${(starVis * 0.24).toFixed(2)})`;
         ctx.beginPath();
-        ctx.arc(mx, my, 19, 0, Math.PI * 2);
+        ctx.arc(mx, my, 20, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = `rgba(255, 244, 196, ${Math.min(1, night * 1.1).toFixed(2)})`;
+        ctx.fillStyle = `rgba(255, 244, 196, ${starVis.toFixed(2)})`;
         ctx.beginPath();
         ctx.arc(mx, my, 11.5, 0, Math.PI * 2);
         ctx.fill();
+
+        // Occasional delicate shooting star streaking across night sky
+        if (this.shootingStar.active) {
+          const ss = this.shootingStar;
+          const sx = x + ss.rx * w;
+          const sy = y + ss.ry * h;
+          ctx.strokeStyle = `rgba(255, 250, 220, ${(ss.life * starVis * 0.88).toFixed(2)})`;
+          ctx.lineWidth = 1.6;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx - 26, sy - 11);
+          ctx.stroke();
+        }
       }
 
       // Drifting single-contour fluffy clouds
-      const cloudAlpha = lerp(0.86, 0.10, night);
-      ctx.fillStyle = `rgba(255, 253, 248, ${cloudAlpha.toFixed(2)})`;
+      const cloudAlpha = lerp(0.86, 0.12, night);
+      ctx.fillStyle = this.theme === "dusk"
+        ? `rgba(255, 232, 220, ${cloudAlpha.toFixed(2)})`
+        : `rgba(255, 253, 248, ${cloudAlpha.toFixed(2)})`;
       for (const c of this.clouds) {
         const cx = x + c.rx * w;
         const cy = y + c.ry * h;
@@ -1288,13 +1515,85 @@
         ctx.fill();
       }
 
-      // Soft distant garden foliage along bottom of window
-      ctx.fillStyle = night > 0.5 ? "#24304B" : (this.theme === "dusk" ? "#9B8694" : "#A6D6B0");
+      // Peaceful distant gliding birds in morning/dusk sky
+      if (night < 0.5) {
+        ctx.strokeStyle = this.theme === "dusk" ? "rgba(115, 86, 108, 0.55)" : "rgba(110, 146, 175, 0.55)";
+        ctx.lineWidth = 1.3;
+        ctx.lineCap = "round";
+        for (const b of this.windowBirds) {
+          const bx = x + b.rx * w;
+          const by = y + b.ry * h;
+          const flap = Math.sin(b.phase) * 3.2;
+          ctx.beginPath();
+          ctx.moveTo(bx - 5, by - flap);
+          ctx.quadraticCurveTo(bx - 2, by - 2.5, bx, by);
+          ctx.quadraticCurveTo(bx + 2, by - 2.5, bx + 5, by - flap);
+          ctx.stroke();
+        }
+      }
+
+      // Distant soft pastel rolling hills
+      ctx.fillStyle = night > 0.5 ? "#212B47" : (this.theme === "dusk" ? "#B899AA" : "#BFE2CA");
       ctx.beginPath();
-      ctx.arc(x + w * 0.16, y + h + 6, 36, Math.PI, 0);
-      ctx.arc(x + w * 0.42, y + h + 10, 44, Math.PI, 0);
-      ctx.arc(x + w * 0.85, y + h + 8, 38, Math.PI, 0);
+      ctx.moveTo(x, y + h);
+      ctx.quadraticCurveTo(x + w * 0.25, y + h * 0.64, x + w * 0.55, y + h * 0.78);
+      ctx.quadraticCurveTo(x + w * 0.80, y + h * 0.66, x + w, y + h * 0.80);
+      ctx.lineTo(x + w, y + h);
+      ctx.closePath();
       ctx.fill();
+
+      // Cozy distant neighborhood rooftops with warm glowing windows in Dusk/Night!
+      const houseCol = night > 0.5 ? "#2C3554" : (this.theme === "dusk" ? "#9B8194" : "#D6E3D7");
+      const roofCol = night > 0.5 ? "#3A4266" : (this.theme === "dusk" ? "#B3848F" : "#DFB6A2");
+      const cottages = [
+        { cx: x + w * 0.26, cy: y + h * 0.82, cw: 20, ch: 14 },
+        { cx: x + w * 0.62, cy: y + h * 0.81, cw: 24, ch: 16 },
+        { cx: x + w * 0.75, cy: y + h * 0.84, cw: 18, ch: 13 }
+      ];
+      for (const ct of cottages) {
+        ctx.fillStyle = houseCol;
+        ctx.fillRect(ct.cx - ct.cw * 0.5, ct.cy - ct.ch, ct.cw, ct.ch + 20);
+        ctx.fillStyle = roofCol;
+        ctx.beginPath();
+        ctx.moveTo(ct.cx - ct.cw * 0.62, ct.cy - ct.ch + 1);
+        ctx.lineTo(ct.cx, ct.cy - ct.ch - 9);
+        ctx.lineTo(ct.cx + ct.cw * 0.62, ct.cy - ct.ch + 1);
+        ctx.closePath();
+        ctx.fill();
+
+        // Warm lit cottage windows at dusk & night!
+        if (night > 0.2 || this.theme === "dusk") {
+          ctx.fillStyle = "rgba(255, 224, 142, 0.86)";
+          ctx.fillRect(ct.cx - 4.5, ct.cy - ct.ch + 4, 3.5, 4);
+          ctx.fillRect(ct.cx + 1.5, ct.cy - ct.ch + 4, 3.5, 4);
+        }
+      }
+
+      // Soft foreground garden foliage along bottom of window
+      ctx.fillStyle = night > 0.5 ? "#24304B" : (this.theme === "dusk" ? "#967F8F" : "#9BCEAA");
+      ctx.beginPath();
+      ctx.arc(x + w * 0.14, y + h + 6, 36, Math.PI, 0);
+      ctx.arc(x + w * 0.44, y + h + 11, 44, Math.PI, 0);
+      ctx.arc(x + w * 0.86, y + h + 8, 38, Math.PI, 0);
+      ctx.fill();
+
+      // Tiny garden blossom dots (day) or glowing fireflies (night)
+      for (let i = 0; i < 5; i++) {
+        const fx = x + w * (0.12 + i * 0.20) + Math.sin(this.time * 1.4 + i * 2) * (night > 0.5 ? 5 : 0);
+        const fy = y + h - 10 - (i % 2) * 8 + Math.cos(this.time * 1.7 + i) * (night > 0.5 ? 4 : 0);
+        if (night > 0.5) {
+          const glowA = 0.35 + 0.55 * Math.abs(Math.sin(this.time * 2.5 + i * 1.7));
+          ctx.fillStyle = `rgba(255, 240, 160, ${glowA.toFixed(2)})`;
+          ctx.beginPath();
+          ctx.arc(fx, fy, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = i % 2 === 0 ? "rgba(255, 220, 228, 0.82)" : "rgba(255, 246, 200, 0.82)";
+          ctx.beginPath();
+          ctx.arc(fx, fy, 2.0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
 
       ctx.restore(); // End sky clip
 
@@ -1314,7 +1613,7 @@
 
       // Gently Swaying Sheer Linen Curtains (Left & Right)
       const breeze = Math.sin(this.time * 1.1) * 4;
-      const curtainFill = night > 0.5 ? "rgba(74, 79, 104, 0.72)" : "rgba(255, 252, 246, 0.82)";
+      const curtainFill = night > 0.5 ? "rgba(74, 79, 104, 0.72)" : "rgba(255, 252, 246, 0.84)";
       ctx.fillStyle = curtainFill;
 
       // Left curtain
@@ -1335,6 +1634,53 @@
       ctx.closePath();
       ctx.fill();
 
+      // Oak Curtain Rod with Rounded Finials
+      ctx.strokeStyle = night > 0.5 ? "#665E58" : "#C9AE8E";
+      ctx.lineWidth = 3.6;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x - 18, y - 7);
+      ctx.lineTo(x + w + 18, y - 7);
+      ctx.stroke();
+      ctx.fillStyle = night > 0.5 ? "#786E66" : "#BA9D7B";
+      ctx.beginPath();
+      ctx.arc(x - 20, y - 7, 4.2, 0, Math.PI * 2);
+      ctx.arc(x + w + 20, y - 7, 4.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draped Twinkling Warm Fairy String Lights along top of window!
+      ctx.strokeStyle = night > 0.5 ? "rgba(205, 198, 185, 0.35)" : "rgba(155, 138, 122, 0.32)";
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y - 5);
+      ctx.quadraticCurveTo(x + w * 0.5, y + 14, x + w + 10, y - 5);
+      ctx.stroke();
+
+      const bulbCount = 9;
+      for (let i = 0; i < bulbCount; i++) {
+        const t = (i + 0.5) / bulbCount;
+        const bx = lerp(x - 8, x + w + 8, t);
+        const sag = 4 * t * (1 - t) * 10;
+        const by = y - 4 + sag;
+        const twinkle = 0.72 + 0.28 * Math.sin(this.time * 2.8 + i * 1.4);
+
+        if (this.fairyGlow > 0.04) {
+          const halo = ctx.createRadialGradient(bx, by, 1, bx, by, 12);
+          halo.addColorStop(0, `rgba(255, 224, 140, ${(this.fairyGlow * twinkle * 0.55).toFixed(2)})`);
+          halo.addColorStop(1, "rgba(255, 210, 120, 0)");
+          ctx.fillStyle = halo;
+          ctx.beginPath();
+          ctx.arc(bx, by, 12, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = this.fairyGlow > 0.15
+          ? `rgba(255, 240, 185, ${(0.5 + 0.5 * this.fairyGlow * twinkle).toFixed(2)})`
+          : (night > 0.5 ? "#5A5F78" : "#EFE6D8");
+        ctx.beginPath();
+        ctx.arc(bx, by, 2.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       // Wooden Window Sill
       ctx.fillStyle = night > 0.5 ? "#52556E" : "#DFCCB5";
       ctx.beginPath();
@@ -1342,7 +1688,7 @@
       ctx.fill();
 
       // Sill Prop 1: Tiny Potted Cat Grass
-      const gx = x + w * 0.28;
+      const gx = x + w * 0.24;
       const gy = y + h - 2;
       const wig = Math.sin(this.time * 18) * this.grassWiggle * 5 + Math.sin(this.time * 1.8) * 1.2;
       ctx.strokeStyle = night > 0.5 ? "#5B8E6D" : "#78C289";
@@ -1363,8 +1709,22 @@
       ctx.closePath();
       ctx.fill();
 
-      // Sill Prop 2: Steaming Ceramic Tea/Coffee Mug (Living-together warmth!)
-      const mx = x + w * 0.73;
+      // Sill Prop 2: Cute Miniature Ceramic Succulent Cup (Center)
+      const sx = x + w * 0.53;
+      const sy = y + h - 2;
+      ctx.fillStyle = night > 0.5 ? "#588C75" : "#88C9A1";
+      ctx.beginPath();
+      ctx.ellipse(sx - 4, sy - 11, 4.2, 2.5, -0.4, 0, Math.PI * 2);
+      ctx.ellipse(sx + 4, sy - 11, 4.2, 2.5, 0.4, 0, Math.PI * 2);
+      ctx.ellipse(sx, sy - 13, 3.8, 3.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = night > 0.5 ? "#7C869E" : "#D6E5ED";
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(sx - 6, sy - 9, 12, 9, 3) : ctx.rect(sx - 6, sy - 9, 12, 9);
+      ctx.fill();
+
+      // Sill Prop 3: Steaming Ceramic Tea/Coffee Mug (Living-together warmth!)
+      const mx = x + w * 0.77;
       const my = y + h - 2;
       ctx.fillStyle = night > 0.5 ? "#B8B9CC" : "#FFFBF6";
       ctx.beginPath();
@@ -1493,7 +1853,416 @@
         ctx.arc(cx - 2.2, cy + 4.2, 1.5, 0, Math.PI * 2);
         ctx.arc(cx + 2.2, cy + 4.6, 0.9, 0, Math.PI * 2);
         ctx.fill();
+
+        // 3. Companion Botanical Leaf Art Frame (Completes Curated Gallery Trio above Sofa!)
+        const bx = fx + fw + 14;
+        const by = fy + 6;
+        const bw = 34;
+        const bh = 40;
+        ctx.fillStyle = "rgba(0, 0, 0, 0.06)";
+        ctx.fillRect(bx + 2, by + 3, bw, bh);
+        ctx.fillStyle = night > 0.5 ? "#353A52" : "#FFFDF9";
+        ctx.strokeStyle = night > 0.5 ? "#6B605B" : "#D8C1A3";
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.rect(bx, by, bw, bh);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = night > 0.5 ? "#3D455C" : "#F3F5EE";
+        ctx.fillRect(bx + 4, by + 4, bw - 8, bh - 8);
+
+        // Minimalist painted sage eucalyptus sprig inside frame
+        const lx = bx + bw * 0.5;
+        const ly = by + bh * 0.52;
+        ctx.strokeStyle = night > 0.5 ? "#5D8672" : "#7AA884";
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(lx - 2, ly + 11);
+        ctx.quadraticCurveTo(lx + 1, ly, lx + 2, ly - 10);
+        ctx.stroke();
+        ctx.fillStyle = night > 0.5 ? "#5F8D77" : "#89BA93";
+        ctx.beginPath();
+        ctx.ellipse(lx - 4, ly + 2, 4.2, 2.3, -0.5, 0, Math.PI * 2);
+        ctx.ellipse(lx + 5, ly - 1, 4.2, 2.3, 0.5, 0, Math.PI * 2);
+        ctx.ellipse(lx - 3, ly - 6, 3.8, 2.1, -0.45, 0, Math.PI * 2);
+        ctx.ellipse(lx + 4, ly - 8, 3.5, 2.0, 0.45, 0, Math.PI * 2);
+        ctx.fill();
       }
+
+      ctx.restore();
+    }
+
+    /**
+     * Floating Oak Wall Bookshelf with Pastel Books, Mini Ceramic Kitty & Swaying Trailing Pothos Ivy!
+     */
+    drawWallShelf(ctx, L, night) {
+      if (L.compact || L.shelf.x < 0) return;
+      const { x, y } = L.shelf;
+      const sw = 108;
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Soft wall shadow & brackets
+      ctx.fillStyle = night > 0.5 ? "rgba(0,0,0,0.22)" : "rgba(110, 92, 74, 0.11)";
+      ctx.fillRect(-sw * 0.5 + 3, 5, sw, 6);
+      ctx.fillStyle = night > 0.5 ? "#4C443F" : "#BC9F7D";
+      ctx.fillRect(-sw * 0.36, 7, 4, 9);
+      ctx.fillRect(sw * 0.36 - 4, 7, 4, 9);
+
+      // Oak shelf plank
+      ctx.fillStyle = night > 0.5 ? "#5E534C" : "#DBBF9E";
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(-sw * 0.5, 0, sw, 7.5, 3) : ctx.rect(-sw * 0.5, 0, sw, 7.5);
+      ctx.fill();
+
+      // 1. Row of Pastel Hardcover Books (Left side, with one book leaning playfully!)
+      const books = [
+        { bx: -42, bw: 7, bh: 23, col: night > 0.5 ? "#6E5A68" : "#E8A6B2", rot: 0 },
+        { bx: -34, bw: 6.5, bh: 20, col: night > 0.5 ? "#516578" : "#A2C5DA", rot: 0 },
+        { bx: -27, bw: 7, bh: 24, col: night > 0.5 ? "#66745E" : "#B5D6B2", rot: 0 },
+        { bx: -16, bw: 6.5, bh: 21, col: night > 0.5 ? "#7C6E52" : "#F0D49B", rot: -0.22 }
+      ];
+      for (const bk of books) {
+        ctx.save();
+        ctx.translate(bk.bx, 0);
+        ctx.rotate(bk.rot);
+        ctx.fillStyle = bk.col;
+        ctx.fillRect(0, -bk.bh, bk.bw, bk.bh);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.28)";
+        ctx.fillRect(1, -bk.bh + 4, bk.bw - 2, 2);
+        ctx.restore();
+      }
+
+      // 2. Tiny Ceramic Lucky Cat Figurine (Center)
+      ctx.fillStyle = night > 0.5 ? "#C8CCD9" : "#FFFDF9";
+      ctx.beginPath();
+      ctx.ellipse(6, -7, 6.2, 7.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(6, -15, 5.2, 0, Math.PI * 2);
+      ctx.fill();
+      // Tiny cat ears & pink collar
+      ctx.beginPath();
+      ctx.moveTo(2, -18); ctx.lineTo(1.5, -23); ctx.lineTo(5, -19.5);
+      ctx.moveTo(10, -18); ctx.lineTo(10.5, -23); ctx.lineTo(7, -19.5);
+      ctx.fill();
+      ctx.strokeStyle = "#E88B9E";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(2.5, -10.5); ctx.lineTo(9.5, -10.5);
+      ctx.stroke();
+
+      // 3. Cream Ceramic Pot with Gently Swaying Trailing Pothos Ivy Vines (Right side!)
+      const px = 34;
+      const sway = Math.sin(this.time * 1.45) * 3.5;
+      // Trailing ivy stems draping gracefully below the shelf
+      ctx.strokeStyle = night > 0.5 ? "#416554" : "#6FA67B";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(px + 2, -11);
+      ctx.bezierCurveTo(px + 14, -4, px + 18 + sway, 18, px + 11 + sway * 1.4, 38);
+      ctx.moveTo(px - 2, -10);
+      ctx.bezierCurveTo(px - 10, 0, px - 6 + sway * 0.8, 16, px - 2 + sway, 28);
+      ctx.stroke();
+
+      // Heart-shaped pothos ivy leaves along the draping vines
+      const ivyLeaves = [
+        { lx: px + 10, ly: -4, r: 0.4 },
+        { lx: px + 15 + sway * 0.5, ly: 10, r: 0.25 },
+        { lx: px + 14 + sway * 0.9, ly: 24, r: 0.35 },
+        { lx: px + 11 + sway * 1.3, ly: 36, r: 0.1 },
+        { lx: px - 6 + sway * 0.4, ly: 8, r: -0.4 },
+        { lx: px - 4 + sway * 0.8, ly: 21, r: -0.25 }
+      ];
+      ctx.fillStyle = night > 0.5 ? "#4C7964" : "#80BD8D";
+      for (const iv of ivyLeaves) {
+        ctx.save();
+        ctx.translate(iv.lx, iv.ly);
+        ctx.rotate(iv.r);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 4.5, 2.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // Bushy top foliage & terracotta-cream planter cup
+      ctx.beginPath();
+      ctx.ellipse(px - 5, -14, 5.2, 3.2, -0.4, 0, Math.PI * 2);
+      ctx.ellipse(px + 5, -14, 5.2, 3.2, 0.4, 0, Math.PI * 2);
+      ctx.ellipse(px, -16, 5.0, 3.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = night > 0.5 ? "#9D8B80" : "#F3E8DC";
+      ctx.beginPath();
+      ctx.moveTo(px - 8, -12);
+      ctx.lineTo(px + 8, -12);
+      ctx.lineTo(px + 6.5, 0);
+      ctx.lineTo(px - 6.5, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    /**
+     * Cozy Nordic-Japanese Cream Linen 2-Seater Sofa with Throw Pillows & Knitted Blanket!
+     */
+    drawCozySofa(ctx, sofa, night) {
+      const { x, y, w } = sofa;
+      const bounce = Math.sin(this.sofaBounce * Math.PI * 2) * this.sofaBounce * 3.5;
+      ctx.save();
+      ctx.translate(x, y);
+
+      const hw = w * 0.5;
+      // Ground shadow
+      ctx.fillStyle = night > 0.5 ? "rgba(0,0,0,0.34)" : "rgba(105, 86, 68, 0.14)";
+      ctx.beginPath();
+      ctx.ellipse(0, 3, hw + 6, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tapered honey-oak wooden legs
+      ctx.fillStyle = night > 0.5 ? "#5A4F48" : "#C5A582";
+      ctx.beginPath();
+      ctx.moveTo(-hw + 14, -12); ctx.lineTo(-hw + 19, -12); ctx.lineTo(-hw + 15, 2); ctx.lineTo(-hw + 11, 2); ctx.closePath();
+      ctx.moveTo(hw - 19, -12);  ctx.lineTo(hw - 14, -12);  ctx.lineTo(hw - 11, 2);  ctx.lineTo(hw - 15, 2);  ctx.closePath();
+      ctx.fill();
+
+      // Soft warm-oat linen upholstery (distinct & crisp against sunlit plaster wall!)
+      const fabricBack = night > 0.5 ? "#494E68" : "#EDE2D3";
+      const fabricSeat = night > 0.5 ? "#525874" : "#F6EFE4";
+      const fabricArm = night > 0.5 ? "#434861" : "#E4D6C3";
+      const seamCol = night > 0.5 ? "rgba(20, 22, 36, 0.38)" : "rgba(168, 148, 126, 0.42)";
+
+      ctx.fillStyle = fabricBack;
+      ctx.strokeStyle = seamCol;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(-hw + 10, -64 + bounce * 0.3, w - 20, 42, 12) : ctx.rect(-hw + 10, -64 + bounce * 0.3, w - 20, 42);
+      ctx.fill();
+      ctx.stroke();
+
+      // Subtle center cushion stitch divider
+      ctx.strokeStyle = seamCol;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(0, -60 + bounce * 0.3);
+      ctx.lineTo(0, -24);
+      ctx.stroke();
+
+      // Two Plump Accent Throw Pillows (Sage Green & Dusty Blush!)
+      const drawPillow = (px, py, rot, fill, stripe) => {
+        ctx.save();
+        ctx.translate(px, py + bounce);
+        ctx.rotate(rot);
+        ctx.fillStyle = fill;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(-15, -14, 30, 26, 7) : ctx.rect(-15, -14, 30, 26);
+        ctx.fill();
+        ctx.strokeStyle = stripe;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(-10, -4); ctx.lineTo(10, -4);
+        ctx.moveTo(-10, 4);  ctx.lineTo(10, 4);
+        ctx.stroke();
+        ctx.restore();
+      };
+      drawPillow(-hw * 0.48, -42, -0.14, night > 0.5 ? "#4D6D60" : "#BBD6BE", "rgba(255,255,255,0.22)");
+      drawPillow(hw * 0.38, -41, 0.16, night > 0.5 ? "#7C5A68" : "#F1C4CE", "rgba(255,255,255,0.25)");
+
+      // Plush seat base & cushions
+      ctx.fillStyle = fabricSeat;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(-hw + 8, -32 + bounce * 0.4, w - 16, 22, 7) : ctx.rect(-hw + 8, -32 + bounce * 0.4, w - 16, 22);
+      ctx.fill();
+
+      // Lower wooden trim apron
+      ctx.fillStyle = night > 0.5 ? "#5D524B" : "#D4B999";
+      ctx.fillRect(-hw + 8, -14, w - 16, 5);
+
+      // Left & Right Rounded Armrests
+      ctx.fillStyle = fabricArm;
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(-hw, -44, 17, 34, 7) : ctx.rect(-hw, -44, 17, 34);
+      ctx.roundRect ? ctx.roundRect(hw - 17, -44, 17, 34, 7) : ctx.rect(hw - 17, -44, 17, 34);
+      ctx.fill();
+
+      // Cozy Knitted Honey-Mustard Throw Blanket Draped Over Right Armrest!
+      ctx.fillStyle = night > 0.5 ? "#786A52" : "#E8CFA0";
+      ctx.beginPath();
+      ctx.moveTo(hw - 26, -45);
+      ctx.quadraticCurveTo(hw - 8, -47, hw + 2, -41);
+      ctx.lineTo(hw + 4, -14);
+      ctx.quadraticCurveTo(hw - 6, -11, hw - 17, -15);
+      ctx.lineTo(hw - 20, -34);
+      ctx.quadraticCurveTo(hw - 25, -39, hw - 26, -45);
+      ctx.closePath();
+      ctx.fill();
+      // Subtle knit stitch texture lines on blanket
+      ctx.strokeStyle = night > 0.5 ? "rgba(255,245,220,0.16)" : "rgba(255,252,245,0.48)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(hw - 15, -36); ctx.lineTo(hw + 1, -34);
+      ctx.moveTo(hw - 16, -26); ctx.lineTo(hw + 2, -24);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    /**
+     * Mid-Century Oak Side Table with Retro Spinning Vinyl Turntable & LP Collection!
+     */
+    drawVinylTurntable(ctx, tt, night) {
+      const { x, y } = tt;
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Shadow
+      ctx.fillStyle = night > 0.5 ? "rgba(0,0,0,0.32)" : "rgba(105, 86, 68, 0.14)";
+      ctx.beginPath();
+      ctx.ellipse(0, 3, 29, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tapered oak table legs
+      ctx.fillStyle = night > 0.5 ? "#574D46" : "#BC9D7A";
+      ctx.fillRect(-21, -13, 4, 15);
+      ctx.fillRect(17, -13, 4, 15);
+
+      // Warm oak record cabinet body
+      ctx.fillStyle = night > 0.5 ? "#5F544C" : "#D9BC99";
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(-25, -42, 50, 31, 4) : ctx.rect(-25, -42, 50, 31);
+      ctx.fill();
+
+      // Recessed LP vinyl record storage cubby
+      ctx.fillStyle = night > 0.5 ? "#383545" : "#8F7862";
+      ctx.fillRect(-20, -37, 40, 21);
+
+      // Colorful vinyl LP sleeve spines leaning neatly inside cubby
+      const sleeves = [
+        { sx: -17, col: "#E8A0B0" },
+        { sx: -13, col: "#F2D28E" },
+        { sx: -9,  col: "#9EC8DF" },
+        { sx: -5,  col: "#A6D1AE" },
+        { sx: -1,  col: "#E6B49A" },
+        { sx: 3,   col: "#C8B6E2" }
+      ];
+      for (const sl of sleeves) {
+        ctx.fillStyle = night > 0.5 ? "rgba(210,205,220,0.45)" : sl.col;
+        ctx.fillRect(sl.sx, -35, 3.0, 19);
+      }
+
+      // Retro Turntable Plinth on Top of Cabinet
+      ctx.fillStyle = night > 0.5 ? "#484D66" : "#F7F1E7";
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(-21, -50, 42, 8.5, 2.5) : ctx.rect(-21, -50, 42, 8.5);
+      ctx.fill();
+
+      // Spinning Black Vinyl LP Platter (Perspective oval + rotating highlight gleam!)
+      ctx.save();
+      ctx.translate(-3, -51);
+      ctx.fillStyle = "#262833";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 13.5, 4.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Subtle spinning vinyl groove glint
+      const glintX = Math.cos(this.vinylAngle) * 8.5;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.32)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 9.5, 2.8, 0, this.vinylAngle % (Math.PI * 2), (this.vinylAngle % (Math.PI * 2)) + 0.9);
+      ctx.stroke();
+      // Cute blush-pink LP center label
+      ctx.fillStyle = "#F09CB0";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 4.4, 1.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#FFF";
+      ctx.beginPath();
+      ctx.arc(glintX * 0.1, 0, 0.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Metallic Turntable Tonearm resting onto vinyl
+      const playing = Boolean(window.MoeAudio && window.MoeAudio.isPlaying);
+      ctx.strokeStyle = night > 0.5 ? "#B8BED4" : "#9E968E";
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(15, -51);
+      ctx.lineTo(playing ? 4 : 13, playing ? -50.5 : -46);
+      ctx.stroke();
+      ctx.fillStyle = "#D4B895";
+      ctx.beginPath();
+      ctx.arc(15, -51, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    /**
+     * Woven Seagrass Cat-Toy Basket with Yarn Ball & Peeking Feather Teaser!
+     */
+    drawToyBasket(ctx, basket, night) {
+      const { x, y } = basket;
+      ctx.save();
+      ctx.translate(x, y);
+
+      // Floor shadow
+      ctx.fillStyle = night > 0.5 ? "rgba(0,0,0,0.3)" : "rgba(105, 86, 68, 0.14)";
+      ctx.beginPath();
+      ctx.ellipse(0, 4, 24, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Peeking feather wand stick sticking out of the basket
+      ctx.strokeStyle = night > 0.5 ? "#A8A098" : "#A68C72";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-4, -14);
+      ctx.lineTo(-16, -34);
+      ctx.stroke();
+      ctx.fillStyle = "#B6DDF2";
+      ctx.beginPath();
+      ctx.ellipse(-18, -36, 4, 7.5, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#F4AABB";
+      ctx.beginPath();
+      ctx.ellipse(-14, -37, 3.5, 6.5, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cozy pastel yarn ball & mint toy ball tucked inside basket rim
+      ctx.fillStyle = night > 0.5 ? "#8F6574" : "#F3B0BE";
+      ctx.beginPath();
+      ctx.arc(7, -17, 7.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = night > 0.5 ? "#5D7F70" : "#A6D9B8";
+      ctx.beginPath();
+      ctx.arc(-5, -15, 6.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Woven rounded seagrass basket body
+      ctx.fillStyle = night > 0.5 ? "#63574C" : "#DEC19C";
+      ctx.beginPath();
+      ctx.moveTo(-20, -16);
+      ctx.lineTo(20, -16);
+      ctx.quadraticCurveTo(18, 3, 12, 4);
+      ctx.lineTo(-12, 4);
+      ctx.quadraticCurveTo(-18, 3, -20, -16);
+      ctx.closePath();
+      ctx.fill();
+
+      // Braided rim & woven horizontal texture bands
+      ctx.strokeStyle = night > 0.5 ? "#4C423A" : "#C2A17B";
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.ellipse(0, -16, 20, 4.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.lineWidth = 1.1;
+      ctx.strokeStyle = night > 0.5 ? "rgba(255,245,230,0.14)" : "rgba(145, 115, 82, 0.28)";
+      ctx.beginPath();
+      ctx.moveTo(-18, -9); ctx.quadraticCurveTo(0, -6, 18, -9);
+      ctx.moveTo(-15, -3); ctx.quadraticCurveTo(0, 0, 15, -3);
+      ctx.stroke();
 
       ctx.restore();
     }
@@ -1501,6 +2270,21 @@
     drawCozyRug(ctx, rug, night) {
       const { x, y, rx, ry } = rug;
       ctx.save();
+
+      // Charming woven cream fringe tassels along left & right ends of the rug!
+      ctx.strokeStyle = night > 0.5 ? "rgba(180, 186, 214, 0.32)" : "rgba(222, 208, 188, 0.85)";
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (let i = -3; i <= 3; i++) {
+        const ty = y + i * (ry * 0.16);
+        const edgeX = rx * Math.sqrt(Math.max(0.05, 1 - Math.pow((ty - y) / ry, 2)));
+        ctx.moveTo(x - edgeX + 1, ty);
+        ctx.lineTo(x - edgeX - 8, ty + 0.8);
+        ctx.moveTo(x + edgeX - 1, ty);
+        ctx.lineTo(x + edgeX + 8, ty + 0.8);
+      }
+      ctx.stroke();
 
       // Subtle woven rug thickness shadow
       ctx.fillStyle = night > 0.5 ? "rgba(10, 12, 22, 0.32)" : "rgba(135, 112, 88, 0.14)";
@@ -1740,6 +2524,23 @@
       ctx.ellipse(x, y - 1.5, rx * 0.72, ry * 0.65, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      // Cute tiny plush fish kicker pillow tucked neatly inside the cat bed!
+      ctx.save();
+      ctx.translate(x + rx * 0.22, y - 2.5);
+      ctx.rotate(-0.18);
+      ctx.fillStyle = night > 0.5 ? "#6F88A6" : "#A8D2E8";
+      ctx.beginPath();
+      ctx.moveTo(-6, 0); ctx.lineTo(-11, -3.5); ctx.lineTo(-9.5, 0); ctx.lineTo(-11, 3.5); ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 6.8, 4.0, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#FFF";
+      ctx.beginPath();
+      ctx.arc(3.2, -0.8, 0.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
       ctx.restore();
     }
 
@@ -1867,6 +2668,12 @@
       const { x, y } = bowls;
       ctx.save();
       ctx.translate(x, y);
+
+      // Soft silicone cloud placemat underneath feeding tray
+      ctx.fillStyle = night > 0.5 ? "rgba(86, 92, 122, 0.45)" : "rgba(232, 218, 204, 0.78)";
+      ctx.beginPath();
+      ctx.ellipse(0, 4, 38, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
 
       // Low wooden feeding tray
       ctx.fillStyle = night > 0.5 ? "rgba(0,0,0,0.3)" : "rgba(95, 78, 62, 0.14)";

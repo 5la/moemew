@@ -247,12 +247,29 @@
             const nextIdx = (THEME_ORDER.indexOf(themeMode) + 1) % THEME_ORDER.length;
             applySceneTheme(THEME_ORDER[nextIdx]);
           }
+          if (propHit === "fairy_on") whisper("叮铃 · 点亮了窗前的暖光星星串灯 ✨");
+          if (propHit === "fairy_off") whisper("啪嗒 · 关上了窗前小串灯");
           if (propHit === "lamp_on") whisper("啪嗒 · 点亮了温暖的客厅落地灯");
           if (propHit === "lamp_off") whisper("啪嗒 · 关上了落地灯");
+          if (propHit === "vinyl") {
+            if (window.MoeAudio) {
+              if (!window.MoeAudio.isPlaying) {
+                window.MoeAudio.userPaused = false;
+                window.MoeAudio.unlockAndPlay();
+                whisper(`放下黑胶唱针 · 正在播放 ${window.MoeAudio.getCurrentTrack().name}`);
+              } else {
+                const t = window.MoeAudio.nextTrack();
+                whisper(`轻换一张黑胶唱片 · ${t.name}`);
+              }
+            }
+          }
+          if (propHit === "sofa") whisper("拍了拍软乎乎的奶油小沙发，小猫晃着尾巴走来啦");
+          if (propHit === "basket_ball") whisper("从编织玩具篮里滚出了一颗小绒球 🧶");
+          if (propHit === "basket_fish") whisper("从玩具篮里摸出一条藏着的香脆小鱼干 🐟");
           if (propHit === "bowls") whisper("添上香脆小鱼粮，唤小猫过来开饭啦");
           if (propHit === "bed") whisper("拍了拍软乎乎的小猫窝，过来歇会儿吧");
           if (propHit === "pompom") whisper("拨动了猫爬架上的小绒球 ♪");
-          if (propHit === "sill") whisper("窗台上的热茶与小猫草正伴着微风轻晃");
+          if (propHit === "sill") whisper("窗台上的热茶、多肉与小猫草正伴着微风轻晃");
           return;
         }
       }
