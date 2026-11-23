@@ -137,6 +137,8 @@
       this.trickCycleIdx = 0;
       this.bowlBiteTimer = 0;
       this.bowlTarget = null;
+      this.drinkDuration = 3.4;
+      this.drinkSideDir = -1;
 
       // Paw lift (when batting ball/wand/bubble)
       this.batTimer = 0;
@@ -509,6 +511,66 @@
       this.earRight.impulse(80);
     }
 
+    goToWaterBowl(waterBowlX, waterBowlY, duration = 3.4) {
+      const b = this.getFloorBounds();
+      const s = this.getScale();
+      this.bowlTarget = { x: waterBowlX, y: waterBowlY };
+      this.drinkDuration = duration;
+
+      // Prefer crouching on the RIGHT side of the right water bowl facing LEFT (-1) so neither bowl is blocked;
+      // fall back cleanly to the left side facing right (+1) on very narrow mobile screens!
+      const rightSideX = waterBowlX + 56 * s;
+      if (rightSideX <= b.maxX - 8) {
+        this.drinkSideDir = -1;
+        this.goal = {
+          x: rightSideX,
+          y: clamp(waterBowlY + 3, b.minY + 4, b.maxY - 12)
+        };
+      } else {
+        this.drinkSideDir = 1;
+        this.goal = {
+          x: clamp(waterBowlX - 58 * s, b.minX + 12, b.maxX - 12),
+          y: clamp(waterBowlY + 3, b.minY + 4, b.maxY - 12)
+        };
+      }
+
+      this.idleSleepTimer = 0;
+      if (this.state === "drink_bowl") {
+        this.stateTimer = Math.max(this.stateTimer, duration);
+        this.happyTimer = Math.max(this.happyTimer, duration);
+        return;
+      }
+      this.state = "go_water";
+      this.stateTimer = 10.0;
+      this.pupilSize.target = 1.18;
+      this.earLeft.impulse(-70);
+      this.earRight.impulse(70);
+    }
+
+    goToFishPlate(plateX, plateY) {
+      const b = this.getFloorBounds();
+      const s = this.getScale();
+      this.bowlTarget = { x: plateX, y: plateY };
+      // Position kitty cleanly on the RIGHT side of the left fish-meat plate facing LEFT (-1)
+      // so the steaming salmon slices on the ceramic plate remain 100% visible!
+      const feedX = clamp(plateX + 64 * s, b.minX + 12, b.maxX - 12);
+      const feedY = clamp(plateY + 4, b.minY + 4, b.maxY - 12);
+      this.goal = { x: feedX, y: feedY };
+      this.idleSleepTimer = 0;
+
+      if (this.state === "eat_fish_plate") {
+        this.stateTimer = Math.max(this.stateTimer, 4.0);
+        this.munchTimer = Math.max(this.munchTimer, 4.0);
+        this.happyTimer = Math.max(this.happyTimer, 4.0);
+        return;
+      }
+      this.state = "go_fish_plate";
+      this.stateTimer = 10.0;
+      this.pupilSize.target = 1.26;
+      this.earLeft.impulse(-90);
+      this.earRight.impulse(90);
+    }
+
     followWand(wx, wy) {
       const b = this.getFloorBounds();
       const tx = clamp(wx, b.minX + 12, b.maxX - 12);
@@ -694,8 +756,59 @@
           if (this.stateTimer <= 0) {
             this.mewMouthTimer = 0.55;
             this.happyTimer = 1.4;
-            if (this.onCatEvent) this.onCatEvent("bowl_done");
             this.enterState("sit", 3.2);
+            if (this.onCatEvent) this.onCatEvent("bowl_done");
+          }
+        } else if (this.state === "drink_bowl") {
+          // Crouched right beside the blue water bowl lapping refreshing clear water!
+          this.x = damp(this.x, this.goal.x, 8, dt);
+          this.y = damp(this.y, this.goal.y, 8, dt);
+          this.vx = damp(this.vx, 0, 12, dt);
+          this.vy = damp(this.vy, 0, 12, dt);
+          this.strideAmp = damp(this.strideAmp, 0, 12, dt);
+          this.bodyDir = this.drinkSideDir;
+          this.happyTimer = Math.max(this.happyTimer, 0.35);
+          this.blush.target = 0.78;
+
+          this.bowlBiteTimer -= dt;
+          if (this.bowlBiteTimer <= 0) {
+            this.bowlBiteTimer = 0.50;
+            this.earLeft.impulse(-30);
+            this.earRight.impulse(30);
+            if (this.onCatEvent) this.onCatEvent("water_lap");
+          }
+
+          if (this.stateTimer <= 0) {
+            this.mewMouthTimer = 0.5;
+            this.happyTimer = 1.3;
+            this.enterState("sit", 3.0);
+            if (this.onCatEvent) this.onCatEvent("water_done");
+          }
+        } else if (this.state === "eat_fish_plate") {
+          // Ecstatically crouched beside the left porcelain fish platter munching fresh salmon slices!
+          this.x = damp(this.x, this.goal.x, 8, dt);
+          this.y = damp(this.y, this.goal.y, 8, dt);
+          this.vx = damp(this.vx, 0, 12, dt);
+          this.vy = damp(this.vy, 0, 12, dt);
+          this.strideAmp = damp(this.strideAmp, 0, 12, dt);
+          this.bodyDir = -1;
+          this.munchTimer = Math.max(this.munchTimer, 0.28);
+          this.happyTimer = Math.max(this.happyTimer, 0.4);
+          this.blush.target = 0.94;
+
+          this.bowlBiteTimer -= dt;
+          if (this.bowlBiteTimer <= 0) {
+            this.bowlBiteTimer = 0.62;
+            this.earLeft.impulse(-46);
+            this.earRight.impulse(46);
+            if (this.onCatEvent) this.onCatEvent("fish_plate_bite");
+          }
+
+          if (this.stateTimer <= 0) {
+            this.mewMouthTimer = 0.6;
+            this.happyTimer = 1.8;
+            this.enterState("sit", 3.4);
+            if (this.onCatEvent) this.onCatEvent("fish_plate_done");
           }
         } else if (this.state === "lie") {
           this.vx = damp(this.vx, 0, 10, dt);
@@ -717,7 +830,9 @@
             this.state === "chase_laser" ||
             this.state === "chase_bubble" ||
             this.state === "catnip" ||
-            this.state === "go_bowl";
+            this.state === "go_bowl" ||
+            this.state === "go_water" ||
+            this.state === "go_fish_plate";
 
           let desiredVx = 0;
           let desiredVy = 0;
@@ -727,7 +842,7 @@
             const dy = this.goal.y - this.y;
             const dist = Math.hypot(dx, dy);
             const stopR =
-              this.state === "go_bowl"
+              this.state === "go_bowl" || this.state === "go_water" || this.state === "go_fish_plate"
                 ? 16 * scale
                 : (this.state === "chase_fish" || this.state === "chase_ball" || this.state === "catnip" ? 22 * scale : 24 * scale);
 
@@ -742,6 +857,21 @@
                 this.munchTimer = 3.8;
                 this.happyTimer = 3.8;
                 this.blush.target = 0.86;
+              } else if (this.state === "go_water") {
+                this.state = "drink_bowl";
+                this.stateTimer = this.drinkDuration || 3.4;
+                this.bowlBiteTimer = 0.22;
+                this.bodyDir = this.drinkSideDir;
+                this.happyTimer = this.stateTimer;
+                this.blush.target = 0.78;
+              } else if (this.state === "go_fish_plate") {
+                this.state = "eat_fish_plate";
+                this.stateTimer = 4.0;
+                this.bowlBiteTimer = 0.24;
+                this.bodyDir = -1;
+                this.munchTimer = 4.0;
+                this.happyTimer = 4.0;
+                this.blush.target = 0.94;
               } else if (this.state === "catnip") {
                 // Reached catnip -> ecstatic roll or wide playful zoomie circle!
                 if (Math.random() < 0.65) this.startRoll(3.8);
@@ -764,9 +894,11 @@
                 this.state === "chase_wand" ||
                 this.state === "chase_bubble" ||
                 this.state === "catnip" ||
-                this.state === "go_bowl"
+                this.state === "go_bowl" ||
+                this.state === "go_water" ||
+                this.state === "go_fish_plate"
               ) {
-                maxSpeed = 195 * scale;
+                maxSpeed = 200 * scale;
               }
               if (this.state === "chase_laser") maxSpeed = 235 * scale;
 
@@ -950,7 +1082,11 @@
       if (this.z > 0.1) {
         this.renderJumpPose(ctx, isNight);
       } else if (this.state === "eat_bowl") {
-        this.renderEatBowlPose(ctx, isNight);
+        this.renderBowlPose(ctx, isNight, false, 1);
+      } else if (this.state === "eat_fish_plate") {
+        this.renderBowlPose(ctx, isNight, false, -1);
+      } else if (this.state === "drink_bowl") {
+        this.renderBowlPose(ctx, isNight, true, this.drinkSideDir);
       } else if (this.state === "roll") {
         this.renderRollPose(ctx, isNight);
       } else if (this.state === "lie") {
@@ -1762,59 +1898,63 @@
     }
 
     // -------------------------------------------------------------------------
-    // POSE 8: Happy Low-Head Kibble Eating Pose Right at the Cat Bowl ("埋头干饭")
+    // POSE 8: Happy Low-Head Bowl Feeding & Water-Lapping Pose ("埋头干饭 / 吧嗒舔水")
     // -------------------------------------------------------------------------
 
-    renderEatBowlPose(ctx, isNight) {
-      const dir = 1; // Always faces right toward the ceramic food bowl beside it
-      const munchBob = Math.abs(Math.sin(this.time * 7.4)) * 5.2;
+    renderBowlPose(ctx, isNight, isDrinking = false, forcedDir = null) {
+      const dir = forcedDir !== null ? (forcedDir >= 0 ? 1 : -1) : (isDrinking ? (this.drinkSideDir >= 0 ? 1 : -1) : 1);
+      const bobRate = isDrinking ? 9.2 : 7.4;
+      const bobAmp = isDrinking ? 4.2 : 5.2;
+      const munchBob = Math.abs(Math.sin(this.time * bobRate)) * bobAmp;
       const bodyBreath = Math.sin(this.time * 3.8) * 1.1;
       const outlineCol = isNight ? "rgba(255, 255, 255, 0.18)" : "rgba(136, 126, 116, 0.42)";
 
       // 1. Happily swaying tail behind plump crouched haunch
-      this.drawCurvedTail(ctx, -38, -18, -1, true);
+      this.drawCurvedTail(ctx, -dir * 38, -18, -dir, true);
 
-      // 2. Far front paw (FL with blue-grey sleeve cuff) braced steadily on floor
-      const farFront = solve2BoneIK(16, -24, 21, -2.5, 16, 16, 0.14);
-      this.drawWalkLegOutline(ctx, farFront, "FL", isNight);
-      this.drawWalkLegFill(ctx, farFront, "FL", true, dir);
+      // 2. Far front paw braced steadily on floor
+      const farLegId = dir >= 0 ? "FL" : "FR";
+      const nearLegId = dir >= 0 ? "FR" : "FL";
+      const farFront = solve2BoneIK(dir * 16, -24, dir * 21, -2.5, 16, 16, dir * 0.14);
+      this.drawWalkLegOutline(ctx, farFront, farLegId, isNight);
+      this.drawWalkLegFill(ctx, farFront, farLegId, true, dir);
 
-      // 3. Crouched Feeding Torso (Plump blue-grey haunch + sloping shoulders down toward bowl!)
+      // 3. Crouched Feeding / Drinking Torso
       const p = {
         dir,
         sit: 0,
-        chestX: 16,
+        chestX: dir * 16,
         chestY: -34 + bodyBreath,
-        hipX: -22,
+        hipX: -dir * 22,
         hipY: -30 - bodyBreath * 0.5,
         rHip: 24.0,
         rChest: 21.5
       };
 
-      const nearFront = solve2BoneIK(14, -22, 18, -1.8, 16, 16, 0.16);
+      const nearFront = solve2BoneIK(dir * 14, -22, dir * 18, -1.8, 16, 16, dir * 0.16);
       this.drawWalkTorsoOutline(ctx, p, isNight);
-      this.drawWalkLegOutline(ctx, nearFront, "FR", isNight);
+      this.drawWalkLegOutline(ctx, nearFront, nearLegId, isNight);
 
       // Tucked snowy-white hind paw peeking cleanly beneath blue-grey crouched haunch
       ctx.save();
       ctx.fillStyle = outlineCol;
       ctx.beginPath();
-      ctx.ellipse(-20, -2.2, 11.2, 5.8, 0, 0, Math.PI * 2);
+      ctx.ellipse(-dir * 20, -2.2, 11.2, 5.8, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#FCFBF8";
       ctx.beginPath();
-      ctx.ellipse(-20, -2.4, 9.8, 4.7, 0, 0, Math.PI * 2);
+      ctx.ellipse(-dir * 20, -2.4, 9.8, 4.7, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
       this.drawWalkTorsoFill(ctx, p);
-      this.drawWalkLegFill(ctx, nearFront, "FR", false, dir);
+      this.drawWalkLegFill(ctx, nearFront, nearLegId, false, dir);
 
-      // 4. Head lowered eagerly over the ceramic kibble bowl, nodding happily with every bite!
+      // 4. Head lowered eagerly over the bowl, nodding happily with each crunch or lap!
       ctx.save();
-      ctx.translate(34, -36 + munchBob);
-      ctx.rotate(0.24 + munchBob * 0.018);
-      this.drawHead(ctx, 0, 0, 0.42, false);
+      ctx.translate(dir * 34, -36 + munchBob);
+      ctx.rotate(dir * (0.24 + munchBob * 0.018));
+      this.drawHead(ctx, 0, 0, dir * 0.42, false);
       ctx.restore();
     }
 
@@ -2142,7 +2282,23 @@
       ctx.fill();
 
       const mouthOpen = this.mewMouthTimer > 0 || (this.munchTimer > 0 && Math.sin(this.time * 26) > 0);
-      if (mouthOpen) {
+      if (this.state === "drink_bowl") {
+        // Adorable pink lapping tongue flicking out rhythmically while drinking water!
+        const tongueOut = Math.max(0, Math.sin(this.time * 9.8));
+        if (tongueOut > 0.08) {
+          const tLen = 3.5 + tongueOut * 6.2;
+          ctx.fillStyle = "#F48CA5";
+          ctx.beginPath();
+          ctx.ellipse(noseX, noseY + 8.5 + tLen * 0.55, 3.6, tLen * 0.65, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
+          ctx.lineWidth = 0.9;
+          ctx.beginPath();
+          ctx.moveTo(noseX, noseY + 9.2);
+          ctx.lineTo(noseX, noseY + 8.5 + tLen * 0.8);
+          ctx.stroke();
+        }
+      } else if (mouthOpen) {
         ctx.fillStyle = "#E07A90";
         ctx.beginPath();
         ctx.ellipse(noseX, noseY + 9.2, 4.2, 4.5, 0, 0, Math.PI * 2);

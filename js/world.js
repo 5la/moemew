@@ -112,8 +112,11 @@
       this.pomPomAngle = 0;
       this.pomPomVel = 0;
       this.bowlFoodLevel = 0.25; // 0..1 kibble fullness inside left ceramic bowl
+      this.bowlWaterLevel = 0.35; // 0..1 fresh water fullness inside right ceramic bowl
       this.bowlPourTimer = 0;
+      this.waterPourTimer = 0;
       this.kibbleDrops = [];
+      this.waterRipples = [];
       this.grassWiggle = 0;
       this.useRealClock = false;
       this.clockMinutes = initT.clockBaseMin;
@@ -208,6 +211,28 @@
           this.spawnHeart(this.cat.x + 8 * s, this.cat.y - 78 * s, 3);
           this.spawnSparkles(this.cat.x + 14 * s, this.cat.y - 52 * s, 8, ["#F7A6BA", "#FFE28A", "#B7EFC5"]);
           if (window.MoeAudio) window.MoeAudio.playMew("happy");
+          // Thoughtful realism: after finishing dry kibble, if fresh water is in the water bowl, stroll over for a sip so kitty won't choke!
+          if (this.bowlWaterLevel > 0.25) {
+            const L = this.getRoomLayout();
+            this.cat.goToWaterBowl(L.bowls.x + 13, L.bowls.y, 2.2);
+          }
+        } else if (ev === "water_lap") {
+          const L = this.getRoomLayout();
+          const wx = L.bowls.x + 13;
+          const wy = L.bowls.y - 8;
+          this.bowlWaterLevel = Math.max(0.0, this.bowlWaterLevel - 0.10);
+          if (this.bowlWaterLevel <= 0.02) {
+            this.cat.stateTimer = Math.min(this.cat.stateTimer, 0.22);
+          }
+          this.waterRipples.push({ r: 1.5, life: 1.0 });
+          this.spawnWaterDroplets(wx, wy, 3);
+          this.spawnHeart(this.cat.x - 10 * this.cat.getScale(), this.cat.y - 66 * this.cat.getScale(), 1);
+          if (window.MoeAudio) window.MoeAudio.playLapWater();
+        } else if (ev === "water_done") {
+          const s = this.cat.getScale();
+          this.spawnHeart(this.cat.x, this.cat.y - 78 * s, 2);
+          this.spawnSparkles(this.cat.x, this.cat.y - 54 * s, 8, ["#98E2F7", "#BCE8FF", "#F7A6BA"]);
+          if (window.MoeAudio) window.MoeAudio.playMew("sweet");
         }
       };
 
@@ -379,8 +404,12 @@
         return "basket_fish";
       }
 
-      // 2. Twin Ceramic Cat Bowls -> Pour fresh crunchy cat kibble right into the bowl & call kitty to eat!
+      // 2. Twin Ceramic Cat Bowls -> Left half pours cat kibble; right half pours fresh water!
       if (Math.hypot(clientX - L.bowls.x, clientY - L.bowls.y) < 42) {
+        if (clientX > L.bowls.x) {
+          this.pourWaterIntoBowl();
+          return "bowls_water";
+        }
         this.pourKibbleIntoBowl();
         return "bowls";
       }
@@ -674,6 +703,41 @@
       this.cat.goToBowl(fx, L.bowls.y);
     }
 
+    spawnWaterDroplets(x, y, count = 4) {
+      const cols = ["#8ED4F6", "#BBE8FD", "#E6F7FF"];
+      for (let i = 0; i < count; i++) {
+        this.particles.push({
+          type: "droplet",
+          x: x + (Math.random() - 0.5) * 9,
+          y: y + (Math.random() - 0.5) * 3,
+          vx: (Math.random() - 0.5) * 44,
+          vy: -36 - Math.random() * 42,
+          size: 2.0 + Math.random() * 1.4,
+          color: cols[i % cols.length],
+          life: 1.0,
+          decay: 2.1
+        });
+      }
+    }
+
+    /**
+     * Pour crystal-clear fresh water from a cute tilted ceramic pitcher right into the right water bowl,
+     * filling it with ripples & calling kitty over to lap water happily!
+     */
+    pourWaterIntoBowl() {
+      const L = this.getRoomLayout();
+      const wx = L.bowls.x + 13;
+      const wy = L.bowls.y - 8;
+
+      this.waterPourTimer = 1.02;
+      this.waterRipples.push({ r: 1.4, life: 1.0 });
+      this.spawnRipple(L.bowls.x + 10, L.bowls.y + 2);
+      this.spawnWaterDroplets(wx, wy, 5);
+
+      if (window.MoeAudio) window.MoeAudio.playWaterPour();
+      this.cat.goToWaterBowl(wx, L.bowls.y, 3.4);
+    }
+
     tossFish(targetX, targetY) {
       const b = this.cat.getFloorBounds();
       const landX = Math.max(b.minX + 14, Math.min(b.maxX - 14, targetX));
@@ -798,6 +862,26 @@
           }
           this.kibbleDrops.splice(i, 1);
         }
+      }
+
+      // Pouring fresh crystal water into the right ceramic water bowl & concentric ripples
+      if (this.waterPourTimer > 0) {
+        const prevT = this.waterPourTimer;
+        this.waterPourTimer = Math.max(0, this.waterPourTimer - dt);
+        if (this.waterPourTimer > 0.14 && this.waterPourTimer < 0.90) {
+          this.bowlWaterLevel = Math.min(1.0, this.bowlWaterLevel + dt * 1.25);
+          if (Math.floor(prevT * 8) !== Math.floor(this.waterPourTimer * 8)) {
+            const L = this.getRoomLayout();
+            this.waterRipples.push({ r: 1.2, life: 1.0 });
+            this.spawnWaterDroplets(L.bowls.x + 13, L.bowls.y - 8, 2);
+          }
+        }
+      }
+      for (let i = this.waterRipples.length - 1; i >= 0; i--) {
+        const wr = this.waterRipples[i];
+        wr.r += dt * 11.5;
+        wr.life -= dt * 1.9;
+        if (wr.life <= 0) this.waterRipples.splice(i, 1);
       }
 
       // Window clouds, daytime gliding birds & night shooting star
@@ -1229,7 +1313,7 @@
 
       for (let i = this.particles.length - 1; i >= 0; i--) {
         const p = this.particles[i];
-        if (p.type === "crumb") p.vy += 260 * dt;
+        if (p.type === "crumb" || p.type === "droplet") p.vy += 260 * dt;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.life -= p.decay * dt;
@@ -1450,6 +1534,11 @@
           ctx.fillStyle = p.color || "#C88449";
           ctx.beginPath();
           ctx.ellipse(0, 0, p.size, p.size * 0.78, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (p.type === "droplet") {
+          ctx.fillStyle = p.color || "#92D6F7";
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
@@ -2786,13 +2875,35 @@
       this.drawSingleBowl(ctx, -13, -3, "#F5EFE6", "#C88A56", false, night);
       this.drawKibbleMound(ctx, -13, -8.5, this.bowlFoodLevel);
 
-      // Right Bowl: Fresh Water Bowl with gentle animated shimmer
-      this.drawSingleBowl(ctx, 13, -3, "#F5EFE6", "#9ED4F0", true, night);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
-      ctx.lineWidth = 1.1;
-      ctx.beginPath();
-      ctx.arc(13, -8.5, 4.5, 0.4 + Math.sin(this.time * 2.2) * 0.2, 1.8);
-      ctx.stroke();
+      // Right Bowl: Dynamic Fresh Sparkling Water Bowl (with concentric lapping/pouring ripples!)
+      this.drawSingleBowl(ctx, 13, -3, "#F5EFE6", "#9ED4F0", false, night);
+      if (this.bowlWaterLevel > 0.03) {
+        const wrx = 4.2 + this.bowlWaterLevel * 4.2;
+        const wry = 1.3 + this.bowlWaterLevel * 1.4;
+        const wy = -7.6 - this.bowlWaterLevel * 1.1;
+
+        ctx.fillStyle = night > 0.5 ? "#5D9CC2" : "#8ECDF0";
+        ctx.beginPath();
+        ctx.ellipse(13, wy, wrx, wry, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Soft glossy water reflection highlight
+        ctx.fillStyle = "rgba(235, 250, 255, 0.55)";
+        ctx.beginPath();
+        ctx.ellipse(11.2, wy - 0.3, wrx * 0.42, wry * 0.36, -0.15, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Expanding concentric ripples inside the water bowl
+        for (const wr of this.waterRipples) {
+          const rx = Math.min(wrx * 0.95, wr.r);
+          const ry = rx * 0.34;
+          ctx.strokeStyle = `rgba(255, 255, 255, ${(wr.life * 0.72).toFixed(2)})`;
+          ctx.lineWidth = 1.1;
+          ctx.beginPath();
+          ctx.ellipse(13, wy, rx, ry, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
 
       ctx.restore();
 
@@ -2800,6 +2911,80 @@
       if (this.kibbleDrops.length > 0 || this.bowlPourTimer > 0) {
         this.drawKibblePourOverlay(ctx, bowls, night);
       }
+
+      // Cute tilted ceramic water pitcher & shimmering pouring water stream above the water bowl!
+      if (this.waterPourTimer > 0) {
+        this.drawWaterPourOverlay(ctx, bowls, night);
+      }
+    }
+
+    drawWaterPourOverlay(ctx, bowls, night) {
+      const t = this.waterPourTimer / 1.02;
+      const alpha = Math.min(1, t * 4.8, (1 - t) * 7.5 + 0.12);
+      const wx = bowls.x + 13;
+      const wy = bowls.y - 8;
+      const px = wx + 28;
+      const py = wy - 48;
+      const tilt = -0.68 + Math.sin(this.time * 14) * 0.03;
+
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+
+      // 1. Shimmering translucent curved water stream flowing from pitcher spout straight into water bowl!
+      if (t > 0.14 && t < 0.90) {
+        const spoutX = px - 14;
+        const spoutY = py + 4;
+        const wobble = Math.sin(this.time * 32) * 1.2;
+
+        ctx.strokeStyle = "rgba(130, 206, 246, 0.78)";
+        ctx.lineWidth = 4.2;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(spoutX, spoutY);
+        ctx.quadraticCurveTo(wx + 4 + wobble, (spoutY + wy) * 0.48, wx, wy);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(235, 250, 255, 0.85)";
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
+
+      // 2. Cute Pastel Mint-Sky Ceramic Water Pitcher / Carafe
+      ctx.translate(px, py);
+      ctx.rotate(tilt);
+
+      // Pitcher handle on right
+      ctx.strokeStyle = night > 0.5 ? "#92B4C8" : "#A6D6ED";
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      ctx.arc(11, 2, 7, -Math.PI * 0.45, Math.PI * 0.48);
+      ctx.stroke();
+
+      // Pitcher body with pouring lip spout on upper-left
+      ctx.fillStyle = night > 0.5 ? "#B5D2E3" : "#E8F6FC";
+      ctx.strokeStyle = night > 0.5 ? "#7195AC" : "#96CBE6";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(-16, -9); // Spout tip
+      ctx.lineTo(-9, -12);
+      ctx.lineTo(9, -12);
+      ctx.quadraticCurveTo(13, 0, 10, 14);
+      ctx.quadraticCurveTo(0, 17, -10, 14);
+      ctx.quadraticCurveTo(-13, 2, -10, -5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Soft sky-blue stripe & tiny water-drop emblem on pitcher
+      ctx.fillStyle = "#8ACDF0";
+      ctx.beginPath();
+      ctx.moveTo(0, -3);
+      ctx.quadraticCurveTo(4.2, 2.5, 0, 5.5);
+      ctx.quadraticCurveTo(-4.2, 2.5, 0, -3);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
     }
 
     drawKibbleMound(ctx, bx, by, level) {

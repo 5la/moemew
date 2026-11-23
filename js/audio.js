@@ -754,6 +754,111 @@
     }
 
     /**
+     * Sparkling crystalline water pouring into ceramic bowl (glug-bloop + gentle stream)
+     */
+    playWaterPour() {
+      this.unlockAndPlay();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      // Soft filtered stream hiss
+      if (this.noiseBuffer) {
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.noiseBuffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = "bandpass";
+        filter.frequency.setValueAtTime(1100, now);
+        filter.frequency.exponentialRampToValueAtTime(2200, now + 0.65);
+        filter.Q.value = 2.8;
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.08);
+        gain.gain.setValueAtTime(0.075, now + 0.52);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.72);
+
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.sfxGain);
+        src.start(now);
+        src.stop(now + 0.74);
+      }
+
+      // Bubbling rising liquid droplets as bowl fills up!
+      const drops = [0.04, 0.12, 0.20, 0.29, 0.37, 0.45, 0.54, 0.62];
+      drops.forEach((offset, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        const f0 = 460 + idx * 78 + Math.random() * 45;
+        osc.frequency.setValueAtTime(f0, now + offset);
+        osc.frequency.exponentialRampToValueAtTime(f0 * 1.48, now + offset + 0.055);
+
+        gain.gain.setValueAtTime(0.0001, now + offset);
+        gain.gain.linearRampToValueAtTime(0.085, now + offset + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.068);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.075);
+      });
+    }
+
+    /**
+     * Gentle cute kitten water-lapping sound ("吧嗒吧嗒舔水")
+     */
+    playLapWater() {
+      this.unlockAndPlay();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      [0, 0.14].forEach((offset, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        const base = idx === 0 ? 540 : 620;
+        osc.frequency.setValueAtTime(base, now + offset);
+        osc.frequency.exponentialRampToValueAtTime(base * 1.62, now + offset + 0.055);
+
+        gain.gain.setValueAtTime(0.0001, now + offset);
+        gain.gain.linearRampToValueAtTime(0.085, now + offset + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.075);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.08);
+      });
+    }
+
+    /**
+     * Warm gourmet fish-platter chime + soft ceramic clink when serving fresh salmon slices
+     */
+    playFishServe() {
+      this.unlockAndPlay();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const notes = [freq("E5"), freq("G5"), freq("C6")];
+      notes.forEach((f, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(f, now + idx * 0.065);
+
+        gain.gain.setValueAtTime(0.0001, now + idx * 0.065);
+        gain.gain.linearRampToValueAtTime(0.12, now + idx * 0.065 + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.065 + 0.24);
+
+        osc.connect(gain);
+        gain.connect(this.sfxGain);
+        osc.start(now + idx * 0.065);
+        osc.stop(now + idx * 0.065 + 0.26);
+      });
+    }
+
+    /**
      * Soft boing for yarn ball bounce or cat grass wiggle
      */
     playBoing(pitchScale = 1) {
