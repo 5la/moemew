@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="badge-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFF6F2"/>
+      <stop offset="100%" stop-color="#FFE6EC"/>
+    </linearGradient>
+    <radialGradient id="amber" cx="42%" cy="40%" r="58%">
+      <stop offset="0%" stop-color="#F7B75E"/>
+      <stop offset="65%" stop-color="#D67F24"/>
+      <stop offset="100%" stop-color="#7D430E"/>
+    </radialGradient>
+  </defs>
+  <!-- Soft Squircle Emblem -->
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#badge-bg)" stroke="#FFD6E1" stroke-width="1.5"/>
+  <!-- Cute Floating Heart Accent -->
+  <path d="M50 11.5 C48.2 9.5 45.2 10.8 46.2 13.4 C46.8 15 50 17.2 50 17.2 C50 17.2 53.2 15 53.8 13.4 C54.8 10.8 51.8 9.5 50 11.5 Z" fill="#FF85A1"/>
+  <!-- Rounded Cat Ears -->
+  <path d="M13 28 L10 11 Q10.5 7.5 14 9.5 L25 18.5 Z" fill="#464C5C"/>
+  <path d="M14.8 25 L12.8 13.5 Q13.2 11.8 15.2 13 L22 19 Z" fill="#E89EB1" opacity="0.7"/>
+  <path d="M49 28 L52 11 Q51.5 7.5 48 9.5 L37 18.5 Z" fill="#464C5C"/>
+  <path d="M47.2 25 L49.2 13.5 Q48.8 11.8 46.8 13 L40 19 Z" fill="#E89EB1" opacity="0.7"/>
+  <!-- Plump Blue-Grey Head -->
+  <ellipse cx="31" cy="35" rx="22" ry="18.5" fill="#495061"/>
+  <!-- White Inverted-V Blaze & Fluffy Chin -->
+  <path d="M31 24 C28 30 22 35.5 18 40 C16 47.5 22.5 53.5 31 53.5 C39.5 53.5 46 47.5 44 40 C40 35.5 34 30 31 24 Z" fill="#FFFFFF"/>
+  <!-- Rosy Cheek Blush -->
+  <ellipse cx="17.5" cy="39.5" rx="3.4" ry="2" fill="#FF94AE" opacity="0.55"/>
+  <ellipse cx="44.5" cy="39.5" rx="3.4" ry="2" fill="#FF94AE" opacity="0.55"/>
+  <!-- Big Copper-Amber Eyes -->
+  <circle cx="22" cy="33" r="4.8" fill="url(#amber)"/>
+  <circle cx="22" cy="33" r="3.1" fill="#16151D"/>
+  <circle cx="20.7" cy="31.5" r="1.3" fill="#FFFFFF"/>
+  <circle cx="40" cy="33" r="4.8" fill="url(#amber)"/>
+  <circle cx="40" cy="33" r="3.1" fill="#16151D"/>
+  <circle cx="38.7" cy="31.5" r="1.3" fill="#FFFFFF"/>
+  <!-- Signature Left Smudge & Right Beauty Mole -->
+  <ellipse cx="27.2" cy="41.5" rx="3.3" ry="2.1" transform="rotate(-10 27.2 41.5)" fill="#505768"/>
+  <circle cx="34.8" cy="42.2" r="1.6" fill="#505768"/>
+  <!-- Dark Heart Nose & Cute Smile -->
+  <path d="M28.6 38.2 Q31 37.2 33.4 38.2 Q33 40.2 31 41.2 Q29 40.2 28.6 38.2 Z" fill="#1E2028"/>
+  <path d="M27.8 44 Q29.5 45.5 31 43.6 Q32.5 45.5 34.2 44" stroke="#5E5860" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+</svg>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="day">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#FAF8F4" id="meta-theme-color" />
+  <meta name="description" content="萌喵 moemew.com — 温馨治愈系全屏互动蓝白小猫之家。" />
+  <title>萌喵 · moemew.com</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Full-Viewport Widescreen Interactive Canvas -->
+  <canvas id="stage-canvas" class="stage-canvas" aria-label="在温馨客厅自由漫步的萌喵蓝白小猫互动画面"></canvas>
+
+  <!-- Minimalist Top Header with Cute Custom "萌喵" Logo -->
+  <header class="hud-top">
+    <a href="https://moemew.com" class="brand-mark" id="brand-mark" aria-label="萌喵 moemew.com">
+      <span class="brand-logo" aria-hidden="true">
+        <svg viewBox="0 0 64 64" class="logo-svg">
+          <defs>
+            <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#FFF7F3"/>
+              <stop offset="100%" stop-color="#FFE6EE"/>
+            </linearGradient>
+            <radialGradient id="logo-eye" cx="42%" cy="40%" r="58%">
+              <stop offset="0%" stop-color="#F7B75E"/>
+              <stop offset="65%" stop-color="#D67F24"/>
+              <stop offset="100%" stop-color="#7D430E"/>
+            </radialGradient>
+          </defs>
+          <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#logo-bg)"/>
+          <!-- Tiny Floating Heart -->
+          <path class="logo-heart" d="M50 11.5 C48.2 9.5 45.2 10.8 46.2 13.4 C46.8 15 50 17.2 50 17.2 C50 17.2 53.2 15 53.8 13.4 C54.8 10.8 51.8 9.5 50 11.5 Z" fill="#FF85A1"/>
+          <!-- Kitty Face -->
+          <g class="logo-kitty">
+            <path d="M13 28 L10 11 Q10.5 7.5 14 9.5 L25 18.5 Z" fill="#464C5C"/>
+            <path d="M14.8 25 L12.8 13.5 Q13.2 11.8 15.2 13 L22 19 Z" fill="#E89EB1" opacity="0.72"/>
+            <path d="M49 28 L52 11 Q51.5 7.5 48 9.5 L37 18.5 Z" fill="#464C5C"/>
+            <path d="M47.2 25 L49.2 13.5 Q48.8 11.8 46.8 13 L40 19 Z" fill="#E89EB1" opacity="0.72"/>
+            <ellipse cx="31" cy="35" rx="22" ry="18.5" fill="#495061"/>
+            <path d="M31 24 C28 30 22 35.5 18 40 C16 47.5 22.5 53.5 31 53.5 C39.5 53.5 46 47.5 44 40 C40 35.5 34 30 31 24 Z" fill="#FFFFFF"/>
+            <ellipse cx="17.5" cy="39.5" rx="3.4" ry="2" fill="#FF94AE" opacity="0.58"/>
+            <ellipse cx="44.5" cy="39.5" rx="3.4" ry="2" fill="#FF94AE" opacity="0.58"/>
+            <circle cx="22" cy="33" r="4.8" fill="url(#logo-eye)"/>
+            <circle cx="22" cy="33" r="3.1" fill="#16151D"/>
+            <circle cx="20.7" cy="31.5" r="1.3" fill="#FFFFFF"/>
+            <circle cx="40" cy="33" r="4.8" fill="url(#logo-eye)"/>
+            <circle cx="40" cy="33" r="3.1" fill="#16151D"/>
+            <circle cx="38.7" cy="31.5" r="1.3" fill="#FFFFFF"/>
+            <!-- Signature Half-Mustache Smudge & Beauty Mole -->
+            <ellipse cx="27.2" cy="41.5" rx="3.3" ry="2.1" transform="rotate(-10 27.2 41.5)" fill="#505768"/>
+            <circle cx="34.8" cy="42.2" r="1.6" fill="#505768"/>
+            <path d="M28.6 38.2 Q31 37.2 33.4 38.2 Q33 40.2 31 41.2 Q29 40.2 28.6 38.2 Z" fill="#1E2028"/>
+            <path d="M27.8 44 Q29.5 45.5 31 43.6 Q32.5 45.5 34.2 44" stroke="#5E5860" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          </g>
+        </svg>
+      </span>
+      <span class="brand-copy">
+        <span class="brand-cn">萌喵 <i class="paw-badge" aria-hidden="true">🐾</i></span>
+        <span class="brand-domain">moemew.com</span>
+      </span>
+    </a>
+
+    <div class="hud-actions">
+      <!-- Minimalist Mood / Lighting Switcher -->
+      <div class="pill-group" role="group" aria-label="切换光影氛围">
+        <button type="button" class="icon-btn active" data-theme-btn="day" title="晨光 09:20">晨</button>
+        <button type="button" class="icon-btn" data-theme-btn="dusk" title="暮色 17:50">暮</button>
+        <button type="button" class="icon-btn" data-theme-btn="night" title="星夜 22:30">夜</button>
+      </div>
+
+      <!-- Minimalist BGM Control -->
+      <div class="pill-group music-pill" id="music-pill">
+        <button type="button" class="music-btn" id="music-toggle" aria-label="播放或暂停背景音乐">
+          <span class="sound-bars" aria-hidden="true">
+            <i></i><i></i><i></i>
+          </span>
+          <span class="music-label" id="music-title">午后猫步</span>
+        </button>
+        <button type="button" class="icon-btn next-btn" id="music-next" title="切换曲目" aria-label="下一首">›</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Subtle Whisper Status Line (fades automatically, never clutters) -->
+  <div class="whisper-toast" id="whisper-toast" aria-live="polite"></div>
+
+  <!-- Minimalist Bottom Interaction Dock (8 Playful Modes & Instant Trick Trigger) -->
+  <nav class="hud-bottom" aria-label="互动模式">
+    <div class="dock-capsule" id="dock-capsule">
+      <button type="button" class="dock-btn active" data-mode="roam" aria-pressed="true" title="自由漫步 · 点击地面唤猫直行、轻抚撸猫">
+        <span class="dock-dot"></span>
+        <span>漫步</span>
+      </button>
+      <button type="button" class="dock-btn" data-mode="laser" aria-pressed="false" title="红外激光点 · 滑动引猫360°急停猛扑">
+        <span>激光点</span>
+      </button>
+      <button type="button" class="dock-btn" data-mode="wand" aria-pressed="false" title="逗猫羽 · 晃动高举诱猫腾空扑抓">
+        <span>逗猫羽</span>
+      </button>
+      <button type="button" class="dock-btn" data-mode="fish" aria-pressed="false" title="小鱼干 · 点击地面抛投香脆鱼干">
+        <span>小鱼干</span>
+      </button>
+      <button type="button" class="dock-btn" data-mode="ball" aria-pressed="false" title="小绒球 · 滚出毛毡球陪猫扑球接力">
+        <span>小绒球</span>
+      </button>
+      <button type="button" class="dock-btn" data-mode="bubble" aria-pressed="false" title="彩虹泡 · 点击或滑动吹泡泡看猫跳跃戳破">
+        <span>彩虹泡</span>
+      </button>
+      <button type="button" class="dock-btn" data-mode="catnip" aria-pressed="false" title="猫薄荷 · 撒下猫薄荷叶触发翻肚打滚与转圈">
+        <span>猫薄荷</span>
+      </button>
+      <span class="dock-divider" aria-hidden="true"></span>
+      <button type="button" class="dock-btn dock-action-btn" id="trick-btn" title="一键逗动作：跳跃 / 打滚 / 转圈 / 侧躺 / 端坐">
+        <span>逗动作 ✨</span>
+      </button>
+    </div>
+  </nav>
+
+  <script src="js/audio.js" defer></script>
+  <script src="js/cat.js" defer></script>
+  <script src="js/world.js" defer></script>
+  <script src="js/main.js" defer></script>
+</body>
+</html>
