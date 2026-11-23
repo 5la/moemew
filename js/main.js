@@ -35,11 +35,6 @@
       }, 2400);
     }
 
-    // Subtle initial welcome hint that fades away cleanly
-    setTimeout(() => {
-      whisper("轻点地面唤猫直走过来 · 下方8种玩法可追激光、吹泡泡、撒猫薄荷或逗动作 ✨");
-    }, 600);
-
     // 1. Audio BGM Integration (Auto-unlocks on first touch/click)
     if (window.MoeAudio) {
       window.MoeAudio.onStateChange = ({ isPlaying, track }) => {
@@ -81,29 +76,94 @@
       }
     });
 
-    // 2. Theme Controls (Day / Dusk / Night) synced with Wall Clock
+    // 2. Theme Controls (Auto System Time + Day / Dusk / Night) synced with Wall Clock
     const themeBtns = document.querySelectorAll("[data-theme-btn]");
-    const THEME_ORDER = ["day", "dusk", "night"];
+    const THEME_ORDER = ["auto", "day", "dusk", "night"];
+    const THEME_LABELS = {
+      day: "晨光",
+      dusk: "暮色",
+      night: "星夜"
+    };
     const THEME_TIME_NOTES = {
       day: "09:20 · 晨光洒落原木地板",
       dusk: "17:50 · 落日余晖，暖灯初上",
       night: "22:30 · 星夜静谧，呼噜伴眠"
     };
 
-    function applySceneTheme(theme) {
-      document.documentElement.setAttribute("data-theme", theme);
-      if (metaTheme) metaTheme.setAttribute("content", THEME_META[theme] || "#FAF8F4");
-      themeBtns.forEach((b) => b.classList.toggle("active", b.dataset.themeBtn === theme));
-      world.setTheme(theme);
+    let themeMode = "auto"; // "auto" | "day" | "dusk" | "night"
 
-      if (window.MoeAudio && window.MoeAudio.isPlaying) {
-        const idx = theme === "day" ? 0 : theme === "dusk" ? 1 : 2;
-        window.MoeAudio.nextTrack(idx);
+    function detectSystemScene(now = new Date()) {
+      const hours = now.getHours();
+      const mins = now.getMinutes();
+      const totalMin = hours * 60 + mins;
+      let theme = "day";
+      if (totalMin >= 17 * 60 && totalMin < 19 * 60 + 30) {
+        theme = "dusk";
+      } else if (totalMin >= 19 * 60 + 30 || totalMin < 6 * 60) {
+        theme = "night";
       }
-      if (THEME_TIME_NOTES[theme]) {
-        whisper(THEME_TIME_NOTES[theme]);
+      const hh = String(hours).padStart(2, "0");
+      const mm = String(mins).padStart(2, "0");
+      return {
+        theme,
+        hhmm: `${hh}:${mm}`,
+        clockMinutes: totalMin + now.getSeconds() / 60
+      };
+    }
+
+    function applySceneTheme(selection, { silent = false, instant = false } = {}) {
+      themeMode = selection;
+      const isAuto = selection === "auto";
+      const sys = isAuto ? detectSystemScene() : null;
+      const resolvedTheme = isAuto ? sys.theme : selection;
+
+      document.documentElement.setAttribute("data-theme", resolvedTheme);
+      if (metaTheme) metaTheme.setAttribute("content", THEME_META[resolvedTheme] || "#FAF8F4");
+      themeBtns.forEach((b) => b.classList.toggle("active", b.dataset.themeBtn === selection));
+
+      world.setTheme(resolvedTheme, {
+        useRealClock: isAuto,
+        clockMinutes: isAuto ? sys.clockMinutes : null,
+        instant
+      });
+
+      if (window.MoeAudio) {
+        const idx = resolvedTheme === "day" ? 0 : resolvedTheme === "dusk" ? 1 : 2;
+        if (instant || (window.MoeAudio.isPlaying && window.MoeAudio.trackIndex !== idx)) {
+          window.MoeAudio.nextTrack(idx);
+        }
+      }
+
+      if (!silent) {
+        if (isAuto) {
+          whisper(`跟随系统时间 · ${sys.hhmm} 自动切换至${THEME_LABELS[resolvedTheme]}场景`);
+        } else if (THEME_TIME_NOTES[resolvedTheme]) {
+          whisper(THEME_TIME_NOTES[resolvedTheme]);
+        }
       }
     }
+
+    // Automatically initialize scene & live wall clock from user's device system time!
+    const initSys = detectSystemScene();
+    applySceneTheme("auto", { silent: true, instant: true });
+
+    // Subtle initial welcome hint that fades away cleanly
+    setTimeout(() => {
+      whisper(`已按系统时间 ${initSys.hhmm} 进入${THEME_LABELS[initSys.theme]} · 下方8种趣味互动 ✨`);
+    }, 600);
+
+    // Keep auto scene synced seamlessly when time crosses into Morning / Dusk / Night
+    function syncAutoSceneIfNeeded() {
+      if (themeMode !== "auto") return;
+      const sys = detectSystemScene();
+      if (sys.theme !== world.theme) {
+        applySceneTheme("auto");
+      }
+    }
+    setInterval(syncAutoSceneIfNeeded, 30000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) syncAutoSceneIfNeeded();
+    });
 
     themeBtns.forEach((btn) => {
       btn.addEventListener("click", (e) => {
@@ -184,7 +244,7 @@
         const propHit = world.interactRoomProp(e.clientX, e.clientY);
         if (propHit) {
           if (propHit === "clock") {
-            const nextIdx = (THEME_ORDER.indexOf(world.theme) + 1) % THEME_ORDER.length;
+            const nextIdx = (THEME_ORDER.indexOf(themeMode) + 1) % THEME_ORDER.length;
             applySceneTheme(THEME_ORDER[nextIdx]);
           }
           if (propHit === "lamp_on") whisper("啪嗒 · 点亮了温暖的客厅落地灯");

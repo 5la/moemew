@@ -107,6 +107,7 @@
       this.pomPomVel = 0;
       this.bowlFoodLevel = 0.7; // 0..1 kibble fullness
       this.grassWiggle = 0;
+      this.useRealClock = false;
       this.clockMinutes = initT.clockBaseMin;
       this.targetClockMinutes = initT.clockBaseMin;
 
@@ -336,14 +337,39 @@
       return null;
     }
 
-    setTheme(theme) {
+    setTheme(theme, options = {}) {
+      const { useRealClock = false, clockMinutes = null, instant = false } = options;
       this.theme = theme;
       this.cat.theme = theme;
+      this.useRealClock = Boolean(useRealClock);
       const target = THEME_TARGETS[theme] || THEME_TARGETS.day;
       this.lampOn = target.defaultLamp;
 
-      // Always advance clock hands smoothly forward along the dial to the scene's time!
       let nextMin = target.clockBaseMin;
+      if (typeof clockMinutes === "number") {
+        nextMin = clockMinutes;
+      } else if (this.useRealClock) {
+        const now = new Date();
+        nextMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      }
+
+      if (instant) {
+        this.pal.wallTop = [...target.wallTop];
+        this.pal.wallBot = [...target.wallBot];
+        this.pal.floorTop = [...target.floorTop];
+        this.pal.floorBot = [...target.floorBot];
+        this.pal.baseboard = [...target.baseboard];
+        this.pal.skyTop = [...target.skyTop];
+        this.pal.skyBot = [...target.skyBot];
+        this.pal.sunPatchAlpha = target.sunPatchAlpha;
+        this.pal.nightFactor = target.nightFactor;
+        this.lampGlow = this.lampOn ? 1 : 0;
+        this.clockMinutes = nextMin;
+        this.targetClockMinutes = nextMin;
+        return;
+      }
+
+      // Always advance clock hands smoothly forward along the dial to the target time!
       const currentMod = ((this.targetClockMinutes % 1440) + 1440) % 1440;
       let delta = nextMin - currentMod;
       if (delta < -360) delta += 1440; // e.g., Night (22:30) -> Morning (09:20) spins smoothly forward!
@@ -574,6 +600,17 @@
       this.pal.nightFactor += (tPal.nightFactor - this.pal.nightFactor) * cRate;
 
       this.lampGlow += ((this.lampOn ? 1 : 0) - this.lampGlow) * (1 - Math.exp(-6 * dt));
+      if (this.useRealClock) {
+        const now = new Date();
+        const liveMin = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+        const curMod = ((this.targetClockMinutes % 1440) + 1440) % 1440;
+        let diff = liveMin - curMod;
+        if (diff > 720) diff -= 1440;
+        if (diff < -720) diff += 1440;
+        this.targetClockMinutes += diff;
+      } else {
+        this.targetClockMinutes += dt / 60;
+      }
       this.clockMinutes += (this.targetClockMinutes - this.clockMinutes) * (1 - Math.exp(-4.2 * dt));
 
       // Pom-pom pendulum physics
@@ -1376,7 +1413,7 @@
         ctx.fill();
       }
 
-      const totalMin = this.clockMinutes + this.time / 60;
+      const totalMin = ((this.clockMinutes % 1440) + 1440) % 1440;
       const min = totalMin % 60;
       const hr = (totalMin / 60) % 12;
 
