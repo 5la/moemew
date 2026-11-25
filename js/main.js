@@ -20,6 +20,24 @@
     const toastEl = document.getElementById("whisper-toast");
     const metaTheme = document.getElementById("meta-theme-color");
 
+    // Shared Moments & Vitals Drawer Elements
+    const momentsToggle = document.getElementById("moments-toggle");
+    const momentsDrawer = document.getElementById("moments-drawer");
+    const momentsClose = document.getElementById("moments-close");
+    const onlineDot = document.getElementById("online-dot");
+    const momentsStatusBadge = document.getElementById("moments-status-badge");
+    const syncModeBadge = document.getElementById("sync-mode-badge");
+    const visitorIdentityLine = document.getElementById("visitor-identity-line");
+    const statFullnessBar = document.getElementById("stat-fullness-bar");
+    const statFullnessVal = document.getElementById("stat-fullness-val");
+    const statHydrationBar = document.getElementById("stat-hydration-bar");
+    const statHydrationVal = document.getElementById("stat-hydration-val");
+    const statHappinessBar = document.getElementById("stat-happiness-bar");
+    const statHappinessVal = document.getElementById("stat-happiness-val");
+    const vitalsTip = document.getElementById("vitals-tip");
+    const momentsList = document.getElementById("moments-list");
+    const shareSnapshotBtn = document.getElementById("share-snapshot-btn");
+
     const cat = new window.FreeRoamingCat(window.innerWidth, window.innerHeight);
     const world = new window.WidescreenWorld(canvas, cat);
 
@@ -49,10 +67,15 @@
           world.spawnNote(cat.x + (Math.random() - 0.5) * 30, cat.y - 88 * s);
         }
       };
+
+      // Single source of truth: open kitty's mouth if & ONLY if audio vocalization actually plays!
+      window.MoeAudio.onCatVocalize = (dur) => {
+        cat.openMewMouth(dur);
+      };
     }
 
     const autoUnlockAudio = () => {
-      if (window.MoeAudio && !window.MoeAudio.unlocked) {
+      if (window.MoeAudio && (!window.MoeAudio.unlocked || (window.MoeAudio.ctx && window.MoeAudio.ctx.state === "suspended"))) {
         window.MoeAudio.unlockAndPlay();
       }
     };
@@ -204,27 +227,245 @@
       });
     });
 
+    // 3B. Multi-Visitor Shared State, Fullness Check & Moments Drawer Wiring
+    const social = window.MoeSocial || null;
+
+    function renderMomentsUI(snapshot) {
+      if (!snapshot || !snapshot.state) return;
+      const { mode, storageMode, you, onlineCount, state } = snapshot;
+
+      if (onlineDot) onlineDot.classList.toggle("is-full", Boolean(state.isFull));
+      if (momentsStatusBadge) {
+        momentsStatusBadge.classList.toggle("is-full", Boolean(state.isFull));
+        momentsStatusBadge.textContent = state.isFull ? "已吃饱" : `${state.fullness}%`;
+      }
+      if (syncModeBadge) {
+        const modeLabel = mode === "cloud"
+          ? (storageMode === "kv" ? "云端KV实时" : "云端跨域同步")
+          : "纯静态共享";
+        syncModeBadge.textContent = mode === "cloud"
+          ? `${modeLabel} · ${onlineCount}人在线`
+          : `${modeLabel} · ${onlineCount}窗`;
+      }
+      if (visitorIdentityLine && you) {
+        visitorIdentityLine.textContent = `你的身份：${you.label}`;
+      }
+
+      if (statFullnessBar) {
+        statFullnessBar.style.width = `${state.fullness}%`;
+        statFullnessBar.classList.toggle("is-full", Boolean(state.isFull));
+      }
+      if (statFullnessVal) statFullnessVal.textContent = `${state.fullness}%`;
+      if (statHydrationBar) statHydrationBar.style.width = `${state.hydration}%`;
+      if (statHydrationVal) statHydrationVal.textContent = `${state.hydration}%`;
+      if (statHappinessBar) statHappinessBar.style.width = `${state.happiness}%`;
+      if (statHappinessVal) statHappinessVal.textContent = `${state.happiness}%`;
+
+      if (vitalsTip) {
+        if (state.isFull && state.lastFedBy) {
+          vitalsTip.textContent = `喵喵刚被【${state.lastFedBy.label}】喂得圆滚滚的，现在喂它会摇头打饱嗝哦~ 陪它玩激光/逗猫羽可加速消化！`;
+        } else {
+          vitalsTip.textContent = "饱腹 ≥ 88% 时会捂肚拒食；陪它玩激光/逗猫羽/毛毡球可加速消化~";
+        }
+      }
+
+      if (momentsList) {
+        const items = state.moments || [];
+        if (items.length === 0) {
+          momentsList.innerHTML = `<li class="moment-empty">还没有互动足迹，快去喂猫粮或摸摸它吧~</li>`;
+        } else {
+          momentsList.innerHTML = "";
+          for (const m of items) {
+            const li = document.createElement("li");
+            li.className = `moment-item${m.refused ? " refused" : ""}`;
+
+            const iconSpan = document.createElement("span");
+            iconSpan.className = "moment-icon";
+            iconSpan.textContent = m.icon || "🐾";
+
+            const bodyDiv = document.createElement("div");
+            bodyDiv.className = "moment-body";
+
+            const headDiv = document.createElement("div");
+            headDiv.className = "moment-head";
+
+            const whoSpan = document.createElement("span");
+            whoSpan.className = "moment-who";
+            const isSelf = you && m.visitorId === you.visitorId;
+            whoSpan.textContent = isSelf ? `${m.label}（你）` : (m.label || "匿名访客");
+
+            const timeSpan = document.createElement("span");
+            timeSpan.className = "moment-time";
+            timeSpan.textContent = social ? social.formatRelativeTime(m.at) : "刚刚";
+
+            const textDiv = document.createElement("div");
+            textDiv.className = "moment-text";
+            textDiv.textContent = m.text || "";
+
+            headDiv.appendChild(whoSpan);
+            headDiv.appendChild(timeSpan);
+            bodyDiv.appendChild(headDiv);
+            bodyDiv.appendChild(textDiv);
+            li.appendChild(iconSpan);
+            li.appendChild(bodyDiv);
+            momentsList.appendChild(li);
+          }
+        }
+      }
+
+      world.syncSharedLevels(state);
+    }
+
+    function setMomentsDrawerOpen(open) {
+      if (!momentsDrawer || !momentsToggle) return;
+      momentsDrawer.hidden = !open;
+      momentsToggle.setAttribute("aria-expanded", String(open));
+      if (open && social) {
+        renderMomentsUI(social.getSnapshot());
+      }
+    }
+
+    if (momentsToggle) {
+      momentsToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setMomentsDrawerOpen(Boolean(momentsDrawer && momentsDrawer.hidden));
+      });
+    }
+    if (momentsClose) {
+      momentsClose.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setMomentsDrawerOpen(false);
+      });
+    }
+    if (shareSnapshotBtn && social) {
+      shareSnapshotBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const url = social.buildShareSnapshotUrl();
+        if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(() => {
+            whisper("已复制共享现场链接！发给好友打开可接力触发吃饱拒食与足迹 🔗");
+          }).catch(() => {
+            whisper("已生成共享链接，可直接复制浏览器地址栏分享给好友 🔗");
+            if (typeof history !== "undefined" && history.replaceState) {
+              history.replaceState(null, "", url.slice(url.indexOf("#")));
+            }
+          });
+        } else {
+          if (typeof history !== "undefined" && history.replaceState && url.includes("#")) {
+            history.replaceState(null, "", url.slice(url.indexOf("#")));
+          }
+          whisper("已将当前饱腹与足迹写入地址栏，复制网址即可发给好友接力 🔗");
+        }
+      });
+    }
+
+    if (social) {
+      social.onStateUpdate = (snap) => renderMomentsUI(snap);
+      social.onImportedShare = (info) => {
+        if (info && info.isFull && info.lastFedBy) {
+          setTimeout(() => {
+            cat.refuseFoodFull("full");
+            whisper(`🐾 好友分享的喵喵刚被【${info.lastFedBy.label}】喂得圆滚滚啦，现在喂它会打饱嗝哦~`);
+          }, 900);
+        } else {
+          setTimeout(() => {
+            whisper("🐾 已载入好友分享的喵喵互动现场，继续一起照顾它吧！");
+          }, 900);
+        }
+      };
+      social.onRemoteMoment = (moment, state) => {
+        if (momentsToggle) {
+          momentsToggle.classList.remove("pulse");
+          void momentsToggle.offsetWidth;
+          momentsToggle.classList.add("pulse");
+        }
+        world.replayRemoteMoment(moment);
+        whisper(`🐾 ${moment.label} ${moment.text}`);
+        if (state) world.syncSharedLevels(state);
+      };
+      social.init();
+    }
+
+    // Sync real-time hydration & bowl levels when kitty finishes eating or autonomously sips water!
+    world.onWorldEvent = (ev, payload = {}) => {
+      if (!social) return;
+      if (ev === "auto_drink_lap") {
+        social.applyAutoDrinkSip(5, payload.bowlWaterLevel);
+      } else if (ev === "auto_drink_done") {
+        social.finalizeAutoDrink(payload.bowlWaterLevel, payload.laps || 0);
+        whisper("吃完猫粮乖乖去水碗补了口清水，水分值回升啦 💧");
+      } else if (ev === "bowl_done") {
+        social.syncBowlLevels({ bowlFoodLevel: payload.bowlFoodLevel });
+      } else if (ev === "water_done") {
+        social.syncBowlLevels({ bowlWaterLevel: payload.bowlWaterLevel });
+      } else if (ev === "fish_plate_done") {
+        social.syncBowlLevels({ plateMeatLevel: payload.plateMeatLevel });
+      }
+    };
+
+    /**
+     * Checks shared fullness / hydration before feeding or pouring water.
+     * If another visitor (or yourself) just fed kitty full, kitty pats its round belly & refuses!
+     */
+    function handleFeedOrDrink(action, onAccepted) {
+      if (!social) {
+        onAccepted();
+        return true;
+      }
+      const res = social.recordInteraction(action);
+      if (res.refused) {
+        cat.refuseFoodFull(res.reason === "hydrated" ? "hydrated" : "full");
+        const s = cat.getScale();
+        world.spawnSparkles(cat.x, cat.y - 78 * s, 6, ["#F7B5C4", "#FFE28A", "#B6DDF2"]);
+
+        if (res.reason === "hydrated") {
+          if (res.lastDrankBy && !res.isSameVisitor) {
+            whisper(`喵喵刚喝完【${res.lastDrankBy.label}】倒的清水，摇摇头表示现在不渴啦 💧`);
+          } else {
+            whisper("刚才已经喝得水饱啦，喵喵晃晃脑袋表示不渴咯 💧");
+          }
+        } else {
+          if (res.lastFedBy && !res.isSameVisitor) {
+            whisper(`喵喵刚被【${res.lastFedBy.label}】喂得圆滚滚的啦，捂着肚皮打了个饱嗝~（玩耍消食或约${res.minutesUntilHungry}分钟后再喂）`);
+          } else {
+            whisper("已经吃得圆滚滚啦，喵喵捂着肚皮摆摆爪拒食咯~ 陪它玩会儿激光点帮它消化吧 🫧");
+          }
+        }
+        return false;
+      }
+      onAccepted(res);
+      return true;
+    }
+
     if (feedKibbleBtn) {
       feedKibbleBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        world.pourKibbleIntoBowl();
-        whisper("沙沙沙~ 往猫碗倒满香脆猫粮，小猫听见声音跑去干饭啦 🥣");
+        handleFeedOrDrink("feed_kibble", (res) => {
+          world.pourKibbleIntoBowl();
+          const tail = res && res.justGotFull ? "（吃完这碗就要圆滚滚吃饱啦~）" : "";
+          whisper(`沙沙沙~ 往猫碗倒满香脆猫粮，小猫听见声音跑去干饭啦 🥣${tail}`);
+        });
       });
     }
 
     if (feedFishMeatBtn) {
       feedFishMeatBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        world.serveFishMeatOnPlate();
-        whisper("香喷喷的三文鱼肉端上左边鱼肉盘啦，小猫闻香飞奔过去大快朵颐 🍣");
+        handleFeedOrDrink("feed_fish_meat", (res) => {
+          world.serveFishMeatOnPlate();
+          const tail = res && res.justGotFull ? "（吃完这盘三文鱼就要撑住啦~）" : "";
+          whisper(`香喷喷的三文鱼肉端上左边鱼肉盘啦，小猫闻香飞奔过去大快朵颐 🍣${tail}`);
+        });
       });
     }
 
     if (pourWaterBtn) {
       pourWaterBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        world.pourWaterIntoBowl();
-        whisper("哗啦啦~ 给水碗倒满清甜泉水，小猫跑去吧嗒吧嗒喝水啦 💧");
+        handleFeedOrDrink("pour_water", () => {
+          world.pourWaterIntoBowl();
+          whisper("哗啦啦~ 给水碗倒满清甜泉水，小猫跑去吧嗒吧嗒喝水啦 💧");
+        });
       });
     }
 
@@ -234,6 +475,7 @@
         const res = cat.performNextTrick();
         const s = cat.getScale();
         world.spawnSparkles(cat.x, cat.y - 52 * s, 8);
+        if (social) social.recordInteraction("trick", res && res.msg ? `逗喵喵表演：${res.msg}` : "");
         if (res && res.msg) whisper(res.msg);
       });
     }
@@ -253,11 +495,14 @@
     let lastBubbleDragAt = 0;
 
     function isHudTarget(target) {
-      return Boolean(target.closest(".hud-top, .hud-bottom"));
+      return Boolean(target && target.closest && target.closest(".hud-top, .hud-bottom, .moments-drawer"));
     }
 
     window.addEventListener("pointerdown", (e) => {
       if (isHudTarget(e.target)) return;
+      if (momentsDrawer && !momentsDrawer.hidden) {
+        setMomentsDrawerOpen(false);
+      }
 
       isPressing = true;
       rubAccum = 0;
@@ -267,6 +512,30 @@
       if (mode === "roam") {
         // Pop any floating leftover bubble when tapped
         if (world.tryPopBubbleAt(e.clientX, e.clientY)) return;
+
+        // Check feeding props FIRST through shared fullness/hydration validation!
+        const L = world.getRoomLayout();
+        if (Math.hypot(e.clientX - L.bowls.x, e.clientY - L.bowls.y) < 42) {
+          if (e.clientX > L.bowls.x) {
+            handleFeedOrDrink("pour_water", () => {
+              world.pourWaterIntoBowl();
+              whisper("哗啦啦~ 给水碗添满甘甜清水，小猫跑去吧嗒喝水防噎着啦 💧");
+            });
+          } else {
+            handleFeedOrDrink("feed_kibble", () => {
+              world.pourKibbleIntoBowl();
+              whisper("沙沙沙~ 往猫碗添满香脆猫粮，小猫马上跑来埋头干饭啦 🥣");
+            });
+          }
+          return;
+        }
+        if (Math.hypot(e.clientX - L.bed.x, (e.clientY - L.bed.y) * 1.6) < L.bed.rx + 10) {
+          handleFeedOrDrink("feed_fish_meat", () => {
+            world.serveFishMeatOnPlate();
+            whisper("往左边鱼肉盘放上鲜嫩三文鱼肉，小猫高兴得飞奔过来开吃啦 🍣");
+          });
+          return;
+        }
 
         const propHit = world.interactRoomProp(e.clientX, e.clientY);
         if (propHit) {
@@ -290,13 +559,22 @@
               }
             }
           }
-          if (propHit === "sofa") whisper("拍了拍软乎乎的奶油小沙发，小猫晃着尾巴走来啦");
-          if (propHit === "basket_ball") whisper("从编织玩具篮里滚出了一颗小绒球 🧶");
-          if (propHit === "basket_fish") whisper("从玩具篮里摸出一条藏着的香脆小鱼干 🐟");
-          if (propHit === "bowls") whisper("沙沙沙~ 往猫碗添满香脆猫粮，小猫马上跑来埋头干饭啦 🥣");
-          if (propHit === "bowls_water") whisper("哗啦啦~ 给水碗添满甘甜清水，小猫跑去吧嗒喝水防噎着啦 💧");
-          if (propHit === "fish_plate") whisper("往左边鱼肉盘放上鲜嫩三文鱼肉，小猫高兴得飞奔过来开吃啦 🍣");
-          if (propHit === "pompom") whisper("拨动了猫爬架上的小绒球 ♪");
+          if (propHit === "sofa") {
+            whisper("拍了拍软乎乎的奶油小沙发，小猫晃着尾巴走来啦");
+            if (social) social.recordInteraction("prop", "拍了拍奶油沙发邀喵喵来旁边歇息");
+          }
+          if (propHit === "basket_ball") {
+            whisper("从编织玩具篮里滚出了一颗小绒球 🧶");
+            if (social) social.recordInteraction("ball");
+          }
+          if (propHit === "basket_fish") {
+            whisper("从玩具篮里摸出一条藏着的香脆小鱼干 🐟");
+            if (social) social.recordInteraction("feed_fish_snack");
+          }
+          if (propHit === "pompom") {
+            whisper("拨动了猫爬架上的小绒球 ♪");
+            if (social) social.recordInteraction("prop", "拨动了猫爬架上的粉色小绒球");
+          }
           if (propHit === "sill") whisper("窗台上的热茶、多肉与小猫草正伴着微风轻晃");
           return;
         }
@@ -309,6 +587,7 @@
         } else {
           cat.chaseLaser(e.clientX, e.clientY);
         }
+        if (social) social.recordInteraction("laser");
         return;
       }
 
@@ -317,19 +596,23 @@
         world.spawnBubble(e.clientX, e.clientY, 2);
         lastBubbleDragAt = performance.now();
         if (window.MoeAudio) window.MoeAudio.playBoing(1.38);
+        if (social) social.recordInteraction("bubble");
         return;
       }
 
       if (mode === "catnip") {
         world.sprinkleCatnip(e.clientX, e.clientY);
         if (window.MoeAudio) window.MoeAudio.playBoing(1.25);
+        if (social) social.recordInteraction("catnip");
         whisper("撒下了清香猫薄荷 🌿 小猫闻着味儿跑来啦~");
         return;
       }
 
       if (mode === "fish") {
-        world.tossFish(e.clientX, e.clientY);
-        if (window.MoeAudio) window.MoeAudio.playBoing(1.2);
+        handleFeedOrDrink("feed_fish_snack", () => {
+          world.tossFish(e.clientX, e.clientY);
+          if (window.MoeAudio) window.MoeAudio.playBoing(1.2);
+        });
         return;
       }
 
@@ -347,11 +630,13 @@
           d = Math.hypot(dx, dy) || 1;
         }
         world.spawnBall(e.clientX, e.clientY, (dx / d) * 260, (dy / d) * 150);
+        if (social) social.recordInteraction("ball");
         return;
       }
 
       if (mode === "wand") {
         if (window.MoeAudio) window.MoeAudio.playBell();
+        if (social) social.recordInteraction("wand");
         return;
       }
 
@@ -387,6 +672,7 @@
           } else {
             cat.startRoll(3.6);
             world.spawnHeart(e.clientX, e.clientY - 26, 3);
+            if (social) social.recordInteraction("roll");
             whisper("翻肚皮撒娇打滚啦~ 揉揉软乎乎的白肚皮 💗");
           }
           return;
@@ -394,9 +680,9 @@
 
         if (hit === "nose") {
           cat.pet(e.clientX, e.clientY);
-          cat.mewMouthTimer = 0.45;
           world.spawnHeart(e.clientX, e.clientY - 18, 2);
           if (window.MoeAudio) window.MoeAudio.playMew("tiny");
+          if (social) social.recordInteraction("pet", "轻轻点了一下喵喵的小黑鼻子，喵了一声");
           document.body.dataset.cursor = "petting";
         } else {
           cat.pet(e.clientX, e.clientY);
@@ -405,6 +691,7 @@
             window.MoeAudio.pokePurr();
             if (Math.random() < 0.4) window.MoeAudio.playMew("sweet");
           }
+          if (social) social.recordInteraction("pet");
           document.body.dataset.cursor = "petting";
         }
       } else {

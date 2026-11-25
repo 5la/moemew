@@ -114,6 +114,9 @@
       this.bowlFoodLevel = 0.25; // 0..1 kibble fullness inside left ceramic bowl
       this.bowlWaterLevel = 0.35; // 0..1 fresh water fullness inside right ceramic bowl
       this.plateMeatLevel = 0.0; // 0..1 fresh salmon/fish meat fullness on left porcelain fish plate
+      this.autoDrinkPending = false;
+      this.autoDrinkLaps = 0;
+      this.onWorldEvent = null;
       this.bowlPourTimer = 0;
       this.waterPourTimer = 0;
       this.fishServeTimer = 0;
@@ -214,9 +217,14 @@
           this.spawnHeart(this.cat.x + 8 * s, this.cat.y - 78 * s, 3);
           this.spawnSparkles(this.cat.x + 14 * s, this.cat.y - 52 * s, 8, ["#F7A6BA", "#FFE28A", "#B7EFC5"]);
           if (window.MoeAudio) window.MoeAudio.playMew("happy");
+          if (typeof this.onWorldEvent === "function") {
+            this.onWorldEvent("bowl_done", { bowlFoodLevel: this.bowlFoodLevel });
+          }
           // Thoughtful realism: after finishing dry kibble, if fresh water is in the water bowl, stroll over for a sip so kitty won't choke!
           if (this.bowlWaterLevel > 0.25) {
             const L = this.getRoomLayout();
+            this.autoDrinkPending = true;
+            this.autoDrinkLaps = 0;
             this.cat.goToWaterBowl(L.bowls.x + 13, L.bowls.y, 2.2);
           }
         } else if (ev === "water_lap") {
@@ -231,11 +239,30 @@
           this.spawnWaterDroplets(wx, wy, 3);
           this.spawnHeart(this.cat.x - 10 * this.cat.getScale(), this.cat.y - 66 * this.cat.getScale(), 1);
           if (window.MoeAudio) window.MoeAudio.playLapWater();
+          if (this.autoDrinkPending) {
+            this.autoDrinkLaps++;
+            if (typeof this.onWorldEvent === "function") {
+              this.onWorldEvent("auto_drink_lap", {
+                bowlWaterLevel: this.bowlWaterLevel,
+                laps: this.autoDrinkLaps
+              });
+            }
+          }
         } else if (ev === "water_done") {
           const s = this.cat.getScale();
           this.spawnHeart(this.cat.x, this.cat.y - 78 * s, 2);
           this.spawnSparkles(this.cat.x, this.cat.y - 54 * s, 8, ["#98E2F7", "#BCE8FF", "#F7A6BA"]);
           if (window.MoeAudio) window.MoeAudio.playMew("sweet");
+          const wasAutoDrink = this.autoDrinkPending;
+          const laps = this.autoDrinkLaps;
+          this.autoDrinkPending = false;
+          this.autoDrinkLaps = 0;
+          if (typeof this.onWorldEvent === "function") {
+            this.onWorldEvent(wasAutoDrink ? "auto_drink_done" : "water_done", {
+              bowlWaterLevel: this.bowlWaterLevel,
+              laps
+            });
+          }
         } else if (ev === "fish_plate_bite") {
           const L = this.getRoomLayout();
           this.plateMeatLevel = Math.max(0.0, this.plateMeatLevel - 0.18);
@@ -250,6 +277,9 @@
           this.spawnHeart(this.cat.x, this.cat.y - 80 * s, 4);
           this.spawnSparkles(this.cat.x, this.cat.y - 52 * s, 12, ["#FA9C84", "#FFE28A", "#F7A6BA", "#B7EFC5"]);
           if (window.MoeAudio) window.MoeAudio.playLevelUp();
+          if (typeof this.onWorldEvent === "function") {
+            this.onWorldEvent("fish_plate_done", { plateMeatLevel: this.plateMeatLevel });
+          }
         }
       };
 
@@ -745,6 +775,8 @@
       const wy = L.bowls.y - 8;
 
       this.waterPourTimer = 1.02;
+      this.autoDrinkPending = false;
+      this.autoDrinkLaps = 0;
       this.waterRipples.push({ r: 1.4, life: 1.0 });
       this.spawnRipple(L.bowls.x + 10, L.bowls.y + 2);
       this.spawnWaterDroplets(wx, wy, 5);
@@ -786,6 +818,58 @@
 
       if (window.MoeAudio) window.MoeAudio.playFishServe();
       this.cat.goToFishPlate(px, L.bed.y);
+    }
+
+    /**
+     * Sync shared bowl levels gently from remote/shared state (without interrupting an active pour!)
+     */
+    syncSharedLevels(sharedState) {
+      if (!sharedState) return;
+      if (this.bowlPourTimer <= 0 && this.kibbleDrops.length === 0 && typeof sharedState.bowlFoodLevel === "number") {
+        if (this.cat.state !== "eat_bowl") {
+          this.bowlFoodLevel = sharedState.bowlFoodLevel;
+        }
+      }
+      if (this.waterPourTimer <= 0 && typeof sharedState.bowlWaterLevel === "number") {
+        if (this.cat.state !== "drink_bowl") {
+          this.bowlWaterLevel = sharedState.bowlWaterLevel;
+        }
+      }
+      if (this.fishServeTimer <= 0 && this.fishDrops.length === 0 && typeof sharedState.plateMeatLevel === "number") {
+        if (this.cat.state !== "eat_fish_plate") {
+          this.plateMeatLevel = sharedState.plateMeatLevel;
+        }
+      }
+    }
+
+    /**
+     * Replay a subtle live visual effect when another remote visitor interacts with kitty!
+     */
+    replayRemoteMoment(moment) {
+      if (!moment || !moment.action) return;
+      const s = this.cat.getScale();
+      if (moment.action === "feed_kibble") {
+        this.pourKibbleIntoBowl();
+      } else if (moment.action === "feed_fish_meat") {
+        this.serveFishMeatOnPlate();
+      } else if (moment.action === "pour_water") {
+        this.pourWaterIntoBowl();
+      } else if (moment.action === "auto_sip") {
+        this.spawnSparkles(this.cat.x, this.cat.y - 56 * s, 7, ["#98E2F7", "#BCE8FF", "#F7A6BA"]);
+      } else if (moment.action === "feed_fish_snack") {
+        this.tossFish(this.width * 0.5, this.height * 0.62);
+      } else if (moment.action === "refused_full" || moment.action === "refused_water") {
+        this.cat.refuseFoodFull(moment.action === "refused_water" ? "hydrated" : "full");
+      } else if (moment.action === "pet" || moment.action === "roll") {
+        this.spawnHeart(this.cat.x, this.cat.y - 74 * s, 3);
+        if (moment.action === "roll") this.cat.startRoll(3.0);
+      } else if (moment.action === "catnip") {
+        this.sprinkleCatnip(this.cat.x + 60, this.cat.y + 12);
+      } else if (moment.action === "bubble") {
+        this.spawnBubble(this.cat.x, this.cat.y - 80 * s, 3);
+      } else {
+        this.spawnSparkles(this.cat.x, this.cat.y - 56 * s, 7);
+      }
     }
 
     tossFish(targetX, targetY) {
@@ -1348,6 +1432,10 @@
 
       // 5. Update Cat & Sleepy Night Zzz
       this.cat.update(dt);
+      if (this.autoDrinkPending && this.cat.state !== "go_water" && this.cat.state !== "drink_bowl") {
+        this.autoDrinkPending = false;
+        this.autoDrinkLaps = 0;
+      }
       if (this.cat.state === "lie" && this.cat.idleSleepTimer > 2.2) {
         this.zzzTimer -= dt;
         if (this.zzzTimer <= 0) {

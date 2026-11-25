@@ -139,6 +139,8 @@
       this.bowlTarget = null;
       this.drinkDuration = 3.4;
       this.drinkSideDir = -1;
+      this.refuseKind = "full"; // "full" | "hydrated"
+      this.refusePhase = 0;
 
       // Paw lift (when batting ball/wand/bubble)
       this.batTimer = 0;
@@ -163,6 +165,7 @@
       this.happyTimer = 0;
       this.munchTimer = 0;
       this.mewMouthTimer = 0;
+      this.mewMouthDur = 0.34;
       this.earTwitchTimer = 3.0;
       this.curiousTiltTimer = 4.0;
       this.curiousTiltVal = 0;
@@ -315,8 +318,13 @@
       this.vy *= 0.2;
       this.happyTimer = duration;
       this.blush.target = 0.85;
-      this.mewMouthTimer = 0.45;
       if (window.MoeAudio) window.MoeAudio.playMew("happy");
+    }
+
+    openMewMouth(duration = 0.34) {
+      const d = Math.max(0.16, duration);
+      this.mewMouthDur = d;
+      this.mewMouthTimer = d;
     }
 
     startSpin(duration = 4.2) {
@@ -388,7 +396,6 @@
       }
       this.enterState("sit", 4.5);
       this.happyTimer = 1.2;
-      this.mewMouthTimer = 0.5;
       if (window.MoeAudio) window.MoeAudio.playMew("sweet");
       return { action: "sit", msg: "乖巧端坐！露出招牌小胡子与半截蓝灰袖套 💗" };
     }
@@ -406,7 +413,6 @@
       this.stateTimer = 8.0;
       this.earLeft.impulse(-95);
       this.earRight.impulse(95);
-      this.mewMouthTimer = 0.42;
     }
 
     chaseFish(fishX, fishY) {
@@ -481,7 +487,7 @@
     eatFishNow() {
       this.vx *= 0.15;
       this.vy *= 0.15;
-      this.munchTimer = 1.35;
+      this.munchTimer = 0.52;
       this.happyTimer = 1.6;
       this.blush.target = 0.88;
       this.squish.impulse(0.85);
@@ -569,6 +575,25 @@
       this.pupilSize.target = 1.26;
       this.earLeft.impulse(-90);
       this.earRight.impulse(90);
+    }
+
+    /**
+     * Adorable "already stuffed!" refusal pose: plump white tummy, head-shake decline,
+     * polite paw wave, and a tiny floating "嗝~ 吃饱啦" bubble!
+     */
+    refuseFoodFull(kind = "full") {
+      this.state = "full_refuse";
+      this.stateTimer = 2.9;
+      this.refuseKind = kind === "hydrated" ? "hydrated" : "full";
+      this.refusePhase = 0;
+      this.vx *= 0.15;
+      this.vy *= 0.15;
+      this.idleSleepTimer = 0;
+      this.blush.target = 0.92;
+      this.earLeft.target = -12;
+      this.earRight.target = 12;
+      this.squish.impulse(0.45);
+      if (window.MoeAudio) window.MoeAudio.playFullBurp();
     }
 
     followWand(wx, wy) {
@@ -754,7 +779,7 @@
           }
 
           if (this.stateTimer <= 0) {
-            this.mewMouthTimer = 0.55;
+            this.munchTimer = 0;
             this.happyTimer = 1.4;
             this.enterState("sit", 3.2);
             if (this.onCatEvent) this.onCatEvent("bowl_done");
@@ -779,7 +804,6 @@
           }
 
           if (this.stateTimer <= 0) {
-            this.mewMouthTimer = 0.5;
             this.happyTimer = 1.3;
             this.enterState("sit", 3.0);
             if (this.onCatEvent) this.onCatEvent("water_done");
@@ -805,10 +829,24 @@
           }
 
           if (this.stateTimer <= 0) {
-            this.mewMouthTimer = 0.6;
+            this.munchTimer = 0;
             this.happyTimer = 1.8;
             this.enterState("sit", 3.4);
             if (this.onCatEvent) this.onCatEvent("fish_plate_done");
+          }
+        } else if (this.state === "full_refuse") {
+          // Plump full-belly refusal: gentle head shake & paw wave, then cozy rest!
+          this.refusePhase += dt;
+          this.vx = damp(this.vx, 0, 12, dt);
+          this.vy = damp(this.vy, 0, 12, dt);
+          this.strideAmp = damp(this.strideAmp, 0, 12, dt);
+          this.blush.target = 0.90;
+          this.earLeft.target = -10;
+          this.earRight.target = 10;
+          if (this.stateTimer <= 0) {
+            this.earLeft.target = 0;
+            this.earRight.target = 0;
+            this.enterState("sit", 3.2);
           }
         } else if (this.state === "lie") {
           this.vx = damp(this.vx, 0, 10, dt);
@@ -1081,6 +1119,8 @@
       // Dispatch to dedicated artist-crafted pose renderers!
       if (this.z > 0.1) {
         this.renderJumpPose(ctx, isNight);
+      } else if (this.state === "full_refuse") {
+        this.renderFullRefusePose(ctx, isNight);
       } else if (this.state === "eat_bowl") {
         this.renderBowlPose(ctx, isNight, false, 1);
       } else if (this.state === "eat_fish_plate") {
@@ -1959,6 +1999,164 @@
     }
 
     // -------------------------------------------------------------------------
+    // POSE 9: Adorable Stuffed-Belly Refusal Pose ("摸圆肚皮 · 摇头摆爪 · 打饱嗝")
+    // -------------------------------------------------------------------------
+
+    renderFullRefusePose(ctx, isNight) {
+      const outlineCol = isNight ? "rgba(255, 255, 255, 0.20)" : "rgba(136, 126, 116, 0.44)";
+      const shakeDecay = Math.max(0, 1 - this.refusePhase * 0.34);
+      const headShake = Math.sin(this.refusePhase * 11.5) * 0.15 * shakeDecay;
+      const pawWave = Math.sin(this.refusePhase * 9.5) * 0.35;
+      const bellyPuff = 1 + Math.sin(this.refusePhase * 3.8) * 0.035;
+
+      // 1. Lazy content tail resting on the right
+      this.drawCurvedTail(ctx, 30, -14, 1, false);
+
+      // 2. Plump Stuffed Sitting Body with Extra-Round Snowy-White Full Tummy!
+      ctx.save();
+      ctx.scale(bellyPuff, 1);
+      ctx.beginPath();
+      ctx.moveTo(-20, -68);
+      ctx.bezierCurveTo(-39, -52, -41, -18, -24, -4);
+      ctx.quadraticCurveTo(0, 2, 26, -4);
+      ctx.bezierCurveTo(42, -14, 41, -44, 26, -64);
+      ctx.quadraticCurveTo(18, -70, -20, -68);
+      ctx.closePath();
+
+      ctx.strokeStyle = outlineCol;
+      ctx.lineWidth = 2.6;
+      ctx.stroke();
+
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = "#FCFBF8";
+      ctx.fillRect(-48, -78, 96, 88);
+      // Blue-grey back & right haunch
+      ctx.fillStyle = "#454B5A";
+      ctx.beginPath();
+      ctx.moveTo(19, -74);
+      ctx.bezierCurveTo(18, -48, 17, -26, 18, 6);
+      ctx.lineTo(52, 6);
+      ctx.lineTo(52, -74);
+      ctx.closePath();
+      ctx.fill();
+
+      // Cute plump round full-tummy highlight circle + soft puff marks!
+      ctx.fillStyle = "rgba(255, 232, 236, 0.42)";
+      ctx.beginPath();
+      ctx.ellipse(-4, -26, 20, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(218, 198, 186, 0.58)";
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(-4, -25, 13, 0.35, Math.PI - 0.35);
+      ctx.stroke();
+      ctx.restore();
+      ctx.restore();
+
+      // 3. Two Cute Tucked Snowy-White Hind Feet peeking out at the bottom
+      const drawFoot = (fx, fy) => {
+        ctx.save();
+        ctx.fillStyle = outlineCol;
+        ctx.beginPath();
+        ctx.ellipse(fx, fy, 11.2, 6.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#FCFBF8";
+        ctx.beginPath();
+        ctx.ellipse(fx, fy - 0.3, 9.8, 5.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#F5A0B3";
+        ctx.beginPath();
+        ctx.arc(fx, fy + 0.5, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      };
+      drawFoot(-20, -2.5);
+      drawFoot(21, -2.5);
+
+      // 4. Viewer's Left Front Paw (FR) emerging smoothly from left shoulder to pat its round full tummy!
+      ctx.save();
+      ctx.lineCap = "round";
+      const patY = Math.sin(this.refusePhase * 5.2) * 2.4;
+      ctx.strokeStyle = outlineCol;
+      ctx.lineWidth = 15.0;
+      ctx.beginPath();
+      ctx.moveTo(-26, -44);
+      ctx.quadraticCurveTo(-22, -32, -8, -28 + patY);
+      ctx.stroke();
+      ctx.strokeStyle = "#FCFBF8";
+      ctx.lineWidth = 12.6;
+      ctx.stroke();
+      // Signature small ankle spot near wrist
+      ctx.fillStyle = "#454B5A";
+      ctx.beginPath();
+      ctx.ellipse(-14, -30 + patY * 0.7, 2.5, 3.4, 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 5. Viewer's Right Front Paw (FL with blue-grey sleeve!) waving clearly beside shoulder "吃不下啦~"
+      ctx.save();
+      ctx.translate(22, -46);
+      ctx.rotate(-0.55 + pawWave * 0.75);
+      ctx.lineCap = "round";
+      ctx.strokeStyle = outlineCol;
+      ctx.lineWidth = 15.2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(22, -8);
+      ctx.stroke();
+      ctx.strokeStyle = "#FCFBF8";
+      ctx.lineWidth = 12.8;
+      ctx.stroke();
+      // Iconic blue-grey forearm sleeve cuff!
+      ctx.strokeStyle = "#454B5A";
+      ctx.lineWidth = 12.8;
+      ctx.beginPath();
+      ctx.moveTo(6, -2.2);
+      ctx.lineTo(14, -5.1);
+      ctx.stroke();
+      ctx.restore();
+
+      // 6. Head shaking gently left-right with cute stuffed expression!
+      ctx.save();
+      ctx.translate(-2 + Math.sin(this.refusePhase * 11.5) * 4.5 * shakeDecay, -88);
+      ctx.rotate(headShake);
+      this.drawHead(ctx, 0, 0, Math.sin(this.refusePhase * 11.5) * 0.35 * shakeDecay, false);
+      ctx.restore();
+
+      // 7. Crisp Floating Translucent Speech/Burp Bubble ("嗝~ 吃饱啦" / "喝饱水啦~") cleanly clear of ears!
+      const bubAlpha = Math.min(1, this.refusePhase * 4, this.stateTimer * 2.5);
+      if (bubAlpha > 0.05) {
+        const bobY = -142 - Math.sin(this.refusePhase * 3.2) * 3.5;
+        const bx = 70;
+        ctx.save();
+        ctx.globalAlpha = clamp(bubAlpha, 0, 1);
+
+        // Two tiny trailing bubble dots leading cleanly outward from kitty's cheek
+        ctx.fillStyle = isNight ? "rgba(42, 48, 70, 0.90)" : "rgba(255, 253, 249, 0.94)";
+        ctx.strokeStyle = isNight ? "rgba(255, 255, 255, 0.22)" : "rgba(218, 180, 175, 0.65)";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(43, bobY + 28, 3.0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(52, bobY + 20, 4.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+        // Pill speech bubble
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(bx - 38, bobY - 14, 76, 26, 13) : ctx.rect(bx - 38, bobY - 14, 76, 26);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = isNight ? "#F4F1FA" : "#5A4A48";
+        ctx.font = "600 11.5px 'PingFang SC', 'Microsoft YaHei', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const label = this.refuseKind === "hydrated" ? "喝饱水啦~" : "嗝~ 吃饱啦";
+        ctx.fillText(label, bx, bobY - 0.5);
+        ctx.restore();
+      }
+    }
+
+    // -------------------------------------------------------------------------
     // Shared Torso, Leg, Tail & Head Helpers
     // -------------------------------------------------------------------------
 
@@ -2281,8 +2479,17 @@
       ctx.closePath();
       ctx.fill();
 
-      const mouthOpen = this.mewMouthTimer > 0 || (this.munchTimer > 0 && Math.sin(this.time * 26) > 0);
-      if (this.state === "drink_bowl") {
+      if (this.mewMouthTimer > 0 && this.mewMouthDur > 0) {
+        // Smooth sine mouth-open envelope locked 1:1 to exact Web Audio meow/burp sound duration!
+        const prog = 1 - clamp(this.mewMouthTimer / this.mewMouthDur, 0, 1);
+        const openness = Math.sin(prog * Math.PI);
+        if (openness > 0.06) {
+          ctx.fillStyle = "#E07A90";
+          ctx.beginPath();
+          ctx.ellipse(noseX, noseY + 9.0, 2.0 + openness * 2.5, 1.4 + openness * 3.4, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (this.state === "drink_bowl") {
         // Adorable pink lapping tongue flicking out rhythmically while drinking water!
         const tongueOut = Math.max(0, Math.sin(this.time * 9.8));
         if (tongueOut > 0.08) {
@@ -2298,10 +2505,10 @@
           ctx.lineTo(noseX, noseY + 8.5 + tLen * 0.8);
           ctx.stroke();
         }
-      } else if (mouthOpen) {
+      } else if (this.munchTimer > 0 && Math.sin(this.time * 26) > 0) {
         ctx.fillStyle = "#E07A90";
         ctx.beginPath();
-        ctx.ellipse(noseX, noseY + 9.2, 4.2, 4.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(noseX, noseY + 9.2, 4.0, 4.2, 0, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -2362,6 +2569,22 @@
     drawEye(ctx, ex, ey, isSleeping) {
       ctx.save();
       ctx.translate(ex, ey);
+
+      if (this.state === "full_refuse") {
+        // Cute stuffed-belly "> <" declining eyes!
+        const sgn = ex < 0 ? 1 : -1;
+        ctx.strokeStyle = "#23252E";
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(-sgn * 5.2, -4.5);
+        ctx.lineTo(sgn * 4.5, 0);
+        ctx.lineTo(-sgn * 5.2, 4.5);
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
 
       if (this.happyTimer > 0) {
         ctx.strokeStyle = "#23252E";

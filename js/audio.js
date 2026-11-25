@@ -154,9 +154,30 @@
       this.lastBellTime = 0;
       this.bubbleCombo = 0;
 
-      // Callback for visual note particles on melody beats
+      // Callbacks for visual sync (melody notes, state & exact meow-to-mouth lock-step!)
       this.onMelodyNote = null;
       this.onStateChange = null;
+      this.onCatVocalize = null;
+    }
+
+    /**
+     * Runs audio synthesis ONLY when AudioContext is genuinely running (never silently on a frozen
+     * autoplay-blocked context, and discards stale queued calls if resume settles >350ms later!),
+     * guaranteeing 100% lock-step sound <-> mouth animation sync.
+     */
+    runWhenAudible(fn) {
+      this.unlockAndPlay();
+      if (!this.ctx || this.ctx.state === "closed") return;
+      if (this.ctx.state === "running") {
+        fn();
+      } else if (this.ctx.state === "suspended" && typeof this.ctx.resume === "function") {
+        const requestedAt = Date.now();
+        this.ctx.resume().then(() => {
+          if (this.ctx && this.ctx.state === "running" && Date.now() - requestedAt <= 350) {
+            fn();
+          }
+        }).catch(() => {});
+      }
     }
 
     initContext() {
@@ -214,12 +235,20 @@
     unlockAndPlay() {
       this.initContext();
       if (!this.ctx) return;
-      if (this.ctx.state === "suspended") {
-        this.ctx.resume();
-      }
-      this.unlocked = true;
-      if (!this.userPaused && !this.isPlaying) {
-        this.startBGM();
+      const activate = () => {
+        if (!this.ctx || this.ctx.state !== "running") return;
+        this.unlocked = true;
+        if (!this.userPaused && !this.isPlaying) {
+          this.startBGM();
+        }
+      };
+      if (this.ctx.state === "running") {
+        activate();
+      } else if (this.ctx.state === "suspended" && typeof this.ctx.resume === "function") {
+        const p = this.ctx.resume();
+        if (p && typeof p.then === "function") {
+          p.then(activate).catch(() => {});
+        }
       }
     }
 
@@ -456,78 +485,82 @@
      * @param {"sweet"|"happy"|"curious"|"tiny"} mood
      */
     playMew(mood = "sweet") {
-      this.unlockAndPlay();
-      if (!this.ctx) return;
+      this.runWhenAudible(() => {
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const subOsc = this.ctx.createOscillator();
+        const formant1 = this.ctx.createBiquadFilter();
+        const formant2 = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
 
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const subOsc = this.ctx.createOscillator();
-      const formant1 = this.ctx.createBiquadFilter();
-      const formant2 = this.ctx.createBiquadFilter();
-      const gain = this.ctx.createGain();
+        osc.type = "sawtooth";
+        subOsc.type = "sine";
 
-      osc.type = "sawtooth";
-      subOsc.type = "sine";
+        let dur = 0.34;
+        let startF = 610, peakF = 810, endF = 530;
 
-      let dur = 0.34;
-      let startF = 610, peakF = 810, endF = 530;
+        if (mood === "happy") {
+          dur = 0.38;
+          startF = 660; peakF = 920; endF = 640;
+        } else if (mood === "curious") {
+          dur = 0.25;
+          startF = 580; peakF = 880; endF = 850; // rising question "mrrp?"
+        } else if (mood === "tiny") {
+          dur = 0.20;
+          startF = 740; peakF = 940; endF = 700;
+        }
 
-      if (mood === "happy") {
-        dur = 0.38;
-        startF = 660; peakF = 920; endF = 640;
-      } else if (mood === "curious") {
-        dur = 0.25;
-        startF = 580; peakF = 880; endF = 850; // rising question "mrrp?"
-      } else if (mood === "tiny") {
-        dur = 0.20;
-        startF = 740; peakF = 940; endF = 700;
-      }
+        // Slight random natural variation
+        const jitter = 0.96 + Math.random() * 0.08;
+        startF *= jitter;
+        peakF *= jitter;
+        endF *= jitter;
 
-      // Slight random natural variation
-      const jitter = 0.96 + Math.random() * 0.08;
-      startF *= jitter;
-      peakF *= jitter;
-      endF *= jitter;
+        osc.frequency.setValueAtTime(startF, now);
+        osc.frequency.exponentialRampToValueAtTime(peakF, now + dur * 0.32);
+        osc.frequency.exponentialRampToValueAtTime(endF, now + dur);
 
-      osc.frequency.setValueAtTime(startF, now);
-      osc.frequency.exponentialRampToValueAtTime(peakF, now + dur * 0.32);
-      osc.frequency.exponentialRampToValueAtTime(endF, now + dur);
+        subOsc.frequency.setValueAtTime(startF, now);
+        subOsc.frequency.exponentialRampToValueAtTime(peakF, now + dur * 0.32);
+        subOsc.frequency.exponentialRampToValueAtTime(endF, now + dur);
 
-      subOsc.frequency.setValueAtTime(startF, now);
-      subOsc.frequency.exponentialRampToValueAtTime(peakF, now + dur * 0.32);
-      subOsc.frequency.exponentialRampToValueAtTime(endF, now + dur);
+        // Kitten "m-ee-ow" formant sweep
+        formant1.type = "bandpass";
+        formant1.Q.value = 3.2;
+        formant1.frequency.setValueAtTime(850, now);
+        formant1.frequency.exponentialRampToValueAtTime(1450, now + dur * 0.35);
+        formant1.frequency.exponentialRampToValueAtTime(920, now + dur);
 
-      // Kitten "m-ee-ow" formant sweep
-      formant1.type = "bandpass";
-      formant1.Q.value = 3.2;
-      formant1.frequency.setValueAtTime(850, now);
-      formant1.frequency.exponentialRampToValueAtTime(1450, now + dur * 0.35);
-      formant1.frequency.exponentialRampToValueAtTime(920, now + dur);
+        formant2.type = "lowpass";
+        formant2.frequency.setValueAtTime(2600, now);
 
-      formant2.type = "lowpass";
-      formant2.frequency.setValueAtTime(2600, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.20, now + 0.035);
+        gain.gain.setValueAtTime(0.18, now + dur * 0.55);
+        gain.gain.exponentialRampToValueAtTime(0.0005, now + dur);
 
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(0.20, now + 0.035);
-      gain.gain.setValueAtTime(0.18, now + dur * 0.55);
-      gain.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+        const subGain = this.ctx.createGain();
+        subGain.gain.value = 0.14;
 
-      const subGain = this.ctx.createGain();
-      subGain.gain.value = 0.14;
+        osc.connect(formant1);
+        formant1.connect(formant2);
+        formant2.connect(gain);
 
-      osc.connect(formant1);
-      formant1.connect(formant2);
-      formant2.connect(gain);
+        subOsc.connect(subGain);
+        subGain.connect(gain);
 
-      subOsc.connect(subGain);
-      subGain.connect(gain);
+        gain.connect(this.sfxGain);
 
-      gain.connect(this.sfxGain);
+        osc.start(now);
+        subOsc.start(now);
+        osc.stop(now + dur + 0.03);
+        subOsc.stop(now + dur + 0.03);
 
-      osc.start(now);
-      subOsc.start(now);
-      osc.stop(now + dur + 0.03);
-      subOsc.stop(now + dur + 0.03);
+        // Lock-step mouth sync for the exact vocalization duration!
+        if (typeof this.onCatVocalize === "function") {
+          this.onCatVocalize(dur, mood);
+        }
+      });
     }
 
     /**
@@ -855,6 +888,46 @@
         gain.connect(this.sfxGain);
         osc.start(now + idx * 0.065);
         osc.stop(now + idx * 0.065 + 0.26);
+      });
+    }
+
+    /**
+     * Adorable cute "I'm stuffed!" declining kitten whine + tiny bubbly hiccup burp ("唔~嗝♪")
+     */
+    playFullBurp() {
+      this.runWhenAudible(() => {
+        const now = this.ctx.currentTime;
+        // 1. Soft descending "no thanks~" kitten murmur
+        const osc1 = this.ctx.createOscillator();
+        const gain1 = this.ctx.createGain();
+        osc1.type = "triangle";
+        osc1.frequency.setValueAtTime(520, now);
+        osc1.frequency.exponentialRampToValueAtTime(340, now + 0.22);
+        gain1.gain.setValueAtTime(0.0001, now);
+        gain1.gain.linearRampToValueAtTime(0.12, now + 0.03);
+        gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+        osc1.connect(gain1);
+        gain1.connect(this.sfxGain);
+        osc1.start(now);
+        osc1.stop(now + 0.26);
+
+        // 2. Cute tiny bubbly hiccup pop ("嗝♪")
+        const osc2 = this.ctx.createOscillator();
+        const gain2 = this.ctx.createGain();
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(290, now + 0.26);
+        osc2.frequency.exponentialRampToValueAtTime(640, now + 0.34);
+        gain2.gain.setValueAtTime(0.0001, now + 0.26);
+        gain2.gain.linearRampToValueAtTime(0.13, now + 0.28);
+        gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+        osc2.connect(gain2);
+        gain2.connect(this.sfxGain);
+        osc2.start(now + 0.26);
+        osc2.stop(now + 0.40);
+
+        if (typeof this.onCatVocalize === "function") {
+          this.onCatVocalize(0.38, "burp");
+        }
       });
     }
 
