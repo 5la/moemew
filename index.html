@@ -81,8 +81,56 @@
         </button>
         <button type="button" class="icon-btn next-btn" id="music-next" title="切换曲目" aria-label="下一首">›</button>
       </div>
+
+      <!-- Minimalist Shared Moments & Vitals Pill -->
+      <button type="button" class="pill-group moments-pill" id="moments-toggle" aria-expanded="false" aria-controls="moments-drawer" title="查看所有访客与喵喵的互动瞬间与饱腹状态">
+        <span class="online-dot" id="online-dot" aria-hidden="true"></span>
+        <span class="moments-pill-label">足迹</span>
+        <span class="moments-pill-badge" id="moments-status-badge">30%</span>
+      </button>
     </div>
   </header>
+
+  <!-- Collapsible Frosted-Glass Shared Interaction Moments Drawer -->
+  <aside class="moments-drawer" id="moments-drawer" aria-label="萌喵共享互动足迹" hidden>
+    <div class="drawer-header">
+      <div class="drawer-title-wrap">
+        <span class="drawer-title">🐾 萌喵共享足迹</span>
+        <span class="sync-badge" id="sync-mode-badge">同步中…</span>
+      </div>
+      <button type="button" class="drawer-close" id="moments-close" aria-label="关闭互动足迹">×</button>
+    </div>
+
+    <div class="drawer-identity" id="visitor-identity-line">你的身份：访客加载中…</div>
+
+    <div class="vitals-card">
+      <div class="vital-row">
+        <span class="vital-label">饱腹度</span>
+        <div class="vital-track"><div class="vital-fill fill-food" id="stat-fullness-bar" style="width: 30%"></div></div>
+        <span class="vital-val" id="stat-fullness-val">30%</span>
+      </div>
+      <div class="vital-row">
+        <span class="vital-label">水分值</span>
+        <div class="vital-track"><div class="vital-fill fill-water" id="stat-hydration-bar" style="width: 42%"></div></div>
+        <span class="vital-val" id="stat-hydration-val">42%</span>
+      </div>
+      <div class="vital-row">
+        <span class="vital-label">开心值</span>
+        <div class="vital-track"><div class="vital-fill fill-happy" id="stat-happiness-bar" style="width: 68%"></div></div>
+        <span class="vital-val" id="stat-happiness-val">68%</span>
+      </div>
+      <p class="vitals-tip" id="vitals-tip">饱腹 ≥ 88% 时会捂肚拒食；陪它玩激光/逗猫羽可加速消化~</p>
+    </div>
+
+    <div class="drawer-toolbar" id="local-sim-bar">
+      <span class="drawer-sub">最近互动瞬间</span>
+      <button type="button" class="sim-btn share-btn" id="share-snapshot-btn" title="复制当前饱腹与足迹链接发给好友，对方打开可直接接力触发吃饱拒食">分享现场</button>
+    </div>
+
+    <ul class="moments-list" id="moments-list">
+      <li class="moment-empty">还没有互动足迹，快去喂猫粮或摸摸它吧~</li>
+    </ul>
+  </aside>
 
   <!-- Subtle Whisper Status Line (fades automatically, never clutters) -->
   <div class="whisper-toast" id="whisper-toast" aria-live="polite"></div>
@@ -128,9 +176,11 @@
     </div>
   </nav>
 
+  <script src="js/config.js" defer></script>
   <script src="js/audio.js" defer></script>
   <script src="js/cat.js" defer></script>
   <script src="js/world.js" defer></script>
+  <script src="js/social.js" defer></script>
   <script src="js/main.js" defer></script>
 </body>
 </html>
