@@ -1,21 +1,24 @@
 /**
- * MoeMew GitHub Pages Static & Optional Cloud Sync Engine (js/social.js)
+ * MoeMew Global Realtime Sync & Resilient Static State Engine (js/social.js)
  *
- * Designed specifically for GitHub Pages pure-static hosting:
- * 1. Pure Static Mode (default when MOEMEW_CONFIG.syncEndpoint is empty):
- *    - Zero 404 console errors (does not probe missing /api routes)
- *    - Automatically resolves visitor's real public IP via CORS-safe ipify -> masked a.b.*.* + deterministic cute nickname
- *    - Real-time multi-tab sync via BroadcastChannel + localStorage
- *    - Cross-device pure-static sharing via compact URL hash (#m=...) so sending a link to a friend
- *      preserves kitty's exact fullness, feeder identity & recent moments without any server/database!
- * 2. Optional Cross-Origin Sync Mode (when MOEMEW_CONFIG.syncEndpoint is set to a Cloudflare Worker URL):
- *    - Automatically syncs live across ALL visitors worldwide via CORS GET /state & POST /interact!
+ * Supports 3 seamless modes on GitHub Pages (zero build step, zero external CDN dependencies):
+ * 1. Supabase Free-Tier Global Realtime Mode (Recommended — set supabaseUrl + supabaseAnonKey in js/config.js):
+ *    - Atomic row-locked Postgres RPCs (moemew_get_state / moemew_interact / moemew_sync_bowls)
+ *    - Native Supabase Realtime WebSocket (postgres_changes + broadcast + live online presence)
+ *    - Automatic fallback REST polling & instant visibility sync — zero missed moments, survives every refresh!
+ * 2. Optional Cloudflare Workers Sync Mode (set syncEndpoint in js/config.js):
+ *    - Cross-origin GET /state & POST /interact against extras/cloudflare-worker.js
+ * 3. Resilient Local Static Mode (when neither cloud option is configured yet):
+ *    - Triple-layer persistence (localStorage + sessionStorage + window.name) so even local file://
+ *      or restricted-storage refreshes NEVER lose moments or visitor identity!
+ *    - Multi-tab BroadcastChannel sync + pure-static #m=... shareable snapshot URL.
  */
 (function () {
   "use strict";
 
   const STORAGE_KEY = "moemew:shared_state:v1";
-  const SESSION_ID_KEY = "moemew:session_visitor:v1";
+  const VISITOR_ID_KEY = "moemew:visitor_identity:v1";
+  const WINDOW_NAME_PREFIX = "MOEMEW_CACHE_V1:";
   const CHANNEL_NAME = "moemew_shared_cat_v1";
   const MAX_MOMENTS = 40;
 
@@ -35,20 +38,20 @@
   ];
 
   const ACTION_META = {
-    feed_kibble:     { kind: "food",  full: 32, water: -8, happy: 8,  icon: "🥣", text: "往猫碗倒满香脆猫粮，喵喵埋头咔嚓干饭" },
-    feed_fish_meat:  { kind: "food",  full: 42, water: 4,  happy: 15, icon: "🍣", text: "在左边鱼肉盘端上鲜嫩三文鱼，喵喵香迷糊啦" },
-    feed_fish_snack: { kind: "food",  full: 22, water: -3, happy: 9,  icon: "🐟", text: "抛投了一条香脆小鱼干，喵喵飞奔叼走" },
-    pour_water:      { kind: "water", full: 0,  water: 38, happy: 6,  icon: "💧", text: "给水碗添满清甜泉水，喵喵伸出小粉舌吧嗒喝水" },
-    auto_sip:        { kind: "auto_water", full: 0, water: 20, happy: 3, icon: "💧", text: "吃完猫粮乖乖去水碗补了口清水，水分值回升啦" },
-    pet:             { kind: "play",  full: -1, water: 0,  happy: 10, icon: "💗", text: "轻轻顺毛撸了撸喵喵，收获一阵呼噜噜" },
-    roll:            { kind: "play",  full: -3, water: -1, happy: 12, icon: "🐾", text: "把喵喵逗得翻出软白肚皮左右打滚卖萌" },
-    catnip:          { kind: "play",  full: -4, water: -2, happy: 16, icon: "🌿", text: "撒下清香猫薄荷，喵喵闻香开心转圈打滚" },
-    bubble:          { kind: "play",  full: -6, water: -2, happy: 10, icon: "🫧", text: "吹起一串彩虹泡泡，陪喵喵蹦跳戳破" },
-    laser:           { kind: "play",  full: -7, water: -3, happy: 9,  icon: "🔴", text: "用红激光点陪喵喵满屋360°急停扑抓消食" },
-    wand:            { kind: "play",  full: -6, water: -2, happy: 10, icon: "🪶", text: "高举逗猫羽引得喵喵轻盈腾空扑抓" },
-    ball:            { kind: "play",  full: -6, water: -2, happy: 9,  icon: "🧶", text: "和喵喵在客厅玩起了毛毡球接力赛" },
-    trick:           { kind: "play",  full: -5, water: -1, happy: 8,  icon: "✨", text: "逗喵喵表演了拿手绝活" },
-    prop:            { kind: "play",  full: 0,  water: 0,  happy: 4,  icon: "🏡", text: "轻点了客厅里的温馨小摆件" }
+    feed_kibble:     { kind: "food",       full: 32, water: -8, happy: 8,  icon: "🥣", text: "往猫碗倒满香脆猫粮，喵喵埋头咔嚓干饭" },
+    feed_fish_meat:  { kind: "food",       full: 42, water: 4,  happy: 15, icon: "🍣", text: "在左边鱼肉盘端上鲜嫩三文鱼，喵喵香迷糊啦" },
+    feed_fish_snack: { kind: "food",       full: 22, water: -3, happy: 9,  icon: "🐟", text: "抛投了一条香脆小鱼干，喵喵飞奔叼走" },
+    pour_water:      { kind: "water",      full: 0,  water: 38, happy: 6,  icon: "💧", text: "给水碗添满清甜泉水，喵喵伸出小粉舌吧嗒喝水" },
+    auto_sip:        { kind: "auto_water", full: 0,  water: 20, happy: 3,  icon: "💧", text: "吃完猫粮乖乖去水碗补了口清水，水分值回升啦" },
+    pet:             { kind: "play",       full: -1, water: 0,  happy: 10, icon: "💗", text: "轻轻顺毛撸了撸喵喵，收获一阵呼噜噜" },
+    roll:            { kind: "play",       full: -3, water: -1, happy: 12, icon: "🐾", text: "把喵喵逗得翻出软白肚皮左右打滚卖萌" },
+    catnip:          { kind: "play",       full: -4, water: -2, happy: 16, icon: "🌿", text: "撒下清香猫薄荷，喵喵闻香开心转圈打滚" },
+    bubble:          { kind: "play",       full: -6, water: -2, happy: 10, icon: "🫧", text: "吹起一串彩虹泡泡，陪喵喵蹦跳戳破" },
+    laser:           { kind: "play",       full: -7, water: -3, happy: 9,  icon: "🔴", text: "用红激光点陪喵喵满屋360°急停扑抓消食" },
+    wand:            { kind: "play",       full: -6, water: -2, happy: 10, icon: "🪶", text: "高举逗猫羽引得喵喵轻盈腾空扑抓" },
+    ball:            { kind: "play",       full: -6, water: -2, happy: 9,  icon: "🧶", text: "和喵喵在客厅玩起了毛毡球接力赛" },
+    trick:           { kind: "play",       full: -5, water: -1, happy: 8,  icon: "✨", text: "逗喵喵表演了拿手绝活" },
+    prop:            { kind: "play",       full: 0,  water: 0,  happy: 4,  icon: "🏡", text: "轻点了客厅里的温馨小摆件" }
   };
 
   function clamp(v, min, max) {
@@ -91,12 +94,70 @@
     };
   }
 
+  // =========================================================================
+  // Triple-Layer Local Persistence (localStorage + sessionStorage + window.name)
+  // Guarantees zero refresh loss even on strict file:// or restricted WebViews!
+  // =========================================================================
+
+  function readWindowNameBundle() {
+    try {
+      if (typeof window === "undefined" || typeof window.name !== "string") return {};
+      if (!window.name.startsWith(WINDOW_NAME_PREFIX)) return {};
+      const parsed = JSON.parse(window.name.slice(WINDOW_NAME_PREFIX.length));
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function writeWindowNameBundle(key, valueStr) {
+    try {
+      if (typeof window === "undefined") return;
+      const cur = readWindowNameBundle();
+      cur[key] = valueStr;
+      window.name = WINDOW_NAME_PREFIX + JSON.stringify(cur);
+    } catch (_) {}
+  }
+
   function safeStorageGet(store, key) {
-    try { return store.getItem(key); } catch (_) { return null; }
+    try { return store && typeof store.getItem === "function" ? store.getItem(key) : null; } catch (_) { return null; }
   }
 
   function safeStorageSet(store, key, val) {
-    try { store.setItem(key, val); } catch (_) {}
+    try { if (store && typeof store.setItem === "function") store.setItem(key, val); } catch (_) {}
+  }
+
+  function readPersistentJSON(key) {
+    const candidates = [];
+    const ls = typeof localStorage !== "undefined" ? safeStorageGet(localStorage, key) : null;
+    const ss = typeof sessionStorage !== "undefined" ? safeStorageGet(sessionStorage, key) : null;
+    const wn = readWindowNameBundle()[key] || null;
+    for (const raw of [ls, ss, wn]) {
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") candidates.push(parsed);
+      } catch (_) {}
+    }
+    if (candidates.length === 0) return null;
+    // Prefer the freshest valid snapshot (or richest moments list on equal timestamp)
+    candidates.sort((a, b) => {
+      const ta = Number(a.updatedAt || 0);
+      const tb = Number(b.updatedAt || 0);
+      if (tb !== ta) return tb - ta;
+      const ma = Array.isArray(a.moments) ? a.moments.length : 0;
+      const mb = Array.isArray(b.moments) ? b.moments.length : 0;
+      return mb - ma;
+    });
+    return candidates[0];
+  }
+
+  function writePersistentJSON(key, obj) {
+    let serialized = "";
+    try { serialized = JSON.stringify(obj); } catch (_) { return; }
+    if (typeof localStorage !== "undefined") safeStorageSet(localStorage, key, serialized);
+    if (typeof sessionStorage !== "undefined") safeStorageSet(sessionStorage, key, serialized);
+    writeWindowNameBundle(key, serialized);
   }
 
   // UTF-8 safe Base64URL helpers for pure-static URL snapshot sharing (#m=...)
@@ -162,42 +223,75 @@
   }
 
   function getOrCreateInitialVisitor() {
-    const existing = typeof sessionStorage !== "undefined" ? safeStorageGet(sessionStorage, SESSION_ID_KEY) : null;
-    if (existing) {
-      try {
-        const parsed = JSON.parse(existing);
-        if (parsed && parsed.visitorId && parsed.label) return parsed;
-      } catch (_) {}
+    const existing = readPersistentJSON(VISITOR_ID_KEY);
+    if (existing && existing.visitorId && existing.label) {
+      writePersistentJSON(VISITOR_ID_KEY, existing);
+      return existing;
     }
     const seed = `${Date.now()}_${Math.random()}`;
     const h = hashString(seed);
     const ipA = 10 + (h % 180);
     const ipB = 12 + ((h >>> 8) % 210);
     const identity = buildIdentityFromIp(`${ipA}.${ipB}.0.1`, "local");
-    if (typeof sessionStorage !== "undefined") {
-      safeStorageSet(sessionStorage, SESSION_ID_KEY, JSON.stringify(identity));
-    }
+    writePersistentJSON(VISITOR_ID_KEY, identity);
     return identity;
+  }
+
+  function normalizeSupabaseRow(rec) {
+    if (!rec || typeof rec !== "object") return null;
+    const rawUpdated = rec.updated_at !== undefined ? rec.updated_at : rec.updatedAt;
+    const updatedMs = typeof rawUpdated === "number"
+      ? rawUpdated
+      : (rawUpdated ? Date.parse(rawUpdated) || Date.now() : Date.now());
+    const decayed = decayState({
+      fullness: Number(rec.fullness ?? 30),
+      hydration: Number(rec.hydration ?? 42),
+      happiness: Number(rec.happiness ?? 68),
+      bowlFoodLevel: Number(rec.bowl_food_level ?? rec.bowlFoodLevel ?? 0.25),
+      bowlWaterLevel: Number(rec.bowl_water_level ?? rec.bowlWaterLevel ?? 0.35),
+      plateMeatLevel: Number(rec.plate_meat_level ?? rec.plateMeatLevel ?? 0.0),
+      lastFedBy: rec.last_fed_by ?? rec.lastFedBy ?? null,
+      lastDrankBy: rec.last_drank_by ?? rec.lastDrankBy ?? null,
+      totalInteractions: Number(rec.total_interactions ?? rec.totalInteractions ?? 0),
+      moments: Array.isArray(rec.moments) ? rec.moments : [],
+      updatedAt: updatedMs
+    }, Date.now());
+    return decayed;
   }
 
   class MoeSocialEngine {
     constructor() {
       const cfg = (typeof window !== "undefined" && window.MOEMEW_CONFIG) || {};
+      this.supabaseUrl = typeof cfg.supabaseUrl === "string" ? cfg.supabaseUrl.trim().replace(/\/+$/, "") : "";
+      this.supabaseAnonKey = typeof cfg.supabaseAnonKey === "string" ? cfg.supabaseAnonKey.trim() : "";
       this.syncEndpoint = typeof cfg.syncEndpoint === "string" ? cfg.syncEndpoint.trim().replace(/\/+$/, "") : "";
-      this.mode = "static"; // "cloud" | "static"
+
+      this.mode = "static"; // "supabase" | "cloud" | "static"
       this.storageMode = "github-pages-static";
       this.you = getOrCreateInitialVisitor();
       this.onlineCount = 1;
       this.state = this.formatPublicState(createDefaultLocalState());
       this.seenMomentIds = new Set();
       this.playCooldowns = new Map();
+
       this.channel = null;
       this.pollTimer = null;
       this.digestTimer = null;
 
+      // Native Supabase Realtime WebSocket state
+      this.ws = null;
+      this.wsConnected = false;
+      this.wsJoined = false;
+      this.wsRef = 1;
+      this.wsHeartbeatTimer = null;
+      this.wsReconnectTimer = null;
+      this.wsReconnectAttempt = 0;
+      this.presenceKeys = new Set();
+
       this.onStateUpdate = null;
       this.onRemoteMoment = null;
       this.onImportedShare = null;
+      this.onCloudRefusal = null;
     }
 
     formatPublicState(raw) {
@@ -219,7 +313,27 @@
     }
 
     async init() {
-      // 1. Optional Cross-Origin Cloud Sync Mode (only when user explicitly configures syncEndpoint in js/config.js)
+      // Always hydrate immediately from local triple-layer cache for zero-flash first paint!
+      const imported = this.importHashSnapshot();
+      const cachedRaw = this.loadLocalRaw(Date.now());
+      this.applyIncomingState(this.formatPublicState(cachedRaw), true);
+
+      // 1. Recommended Mode: Supabase Free-Tier Global Realtime Sync (REST RPC + WebSocket)
+      if (this.supabaseUrl && this.supabaseAnonKey && typeof fetch === "function") {
+        const ok = await this.fetchSupabaseState(true);
+        if (ok) {
+          this.mode = "supabase";
+          this.storageMode = "supabase-rest";
+          this.presenceKeys.add(this.you.visitorId);
+          this.onlineCount = Math.max(1, this.presenceKeys.size);
+          this.connectSupabaseRealtime();
+          this.startSupabasePolling();
+          this.detectRealPublicIp();
+          return;
+        }
+      }
+
+      // 2. Alternative Mode: Cloudflare Worker Cross-Origin Sync
       if (this.syncEndpoint && typeof fetch === "function") {
         try {
           const res = await fetch(`${this.syncEndpoint}/state`, { cache: "no-store" });
@@ -236,16 +350,13 @@
             }
           }
         } catch (_) {
-          // Fall through seamlessly to pure static mode
+          // Fall through cleanly to local persistent mode without erasing local cache!
         }
       }
 
-      // 2. Pure GitHub Pages Static Mode (Zero 404s, Zero Server Required!)
+      // 3. Resilient Local Static Mode (Zero 404s, Triple-Layer Refresh Persistence!)
       this.mode = "static";
       this.storageMode = "github-pages-static";
-
-      // Check if opened via a friend's shared snapshot URL (#m=...)
-      const imported = this.importHashSnapshot();
       this.syncLocalState(true);
       this.setupLocalMultiTabSync();
 
@@ -253,8 +364,299 @@
         this.onImportedShare(imported, this.state);
       }
 
-      // Quietly resolve visitor's real public IP (masked to a.b.*.*) when online over HTTP(S)
       this.detectRealPublicIp();
+    }
+
+    // =========================================================================
+    // Supabase Free-Tier Atomic RPC + Native Realtime WebSocket Implementation
+    // =========================================================================
+
+    supabaseHeaders() {
+      return {
+        "Content-Type": "application/json",
+        apikey: this.supabaseAnonKey,
+        Authorization: `Bearer ${this.supabaseAnonKey}`
+      };
+    }
+
+    async fetchSupabaseState(isInitial = false) {
+      if (!this.supabaseUrl || !this.supabaseAnonKey || typeof fetch !== "function") return false;
+      try {
+        const res = await fetch(`${this.supabaseUrl}/rest/v1/rpc/moemew_get_state`, {
+          method: "POST",
+          headers: this.supabaseHeaders(),
+          body: "{}",
+          cache: "no-store"
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (data && data.ok && data.state) {
+          this.mode = "supabase";
+          this.storageMode = this.wsJoined ? "supabase-realtime" : "supabase-rest";
+          this.cacheStateLocally(data.state);
+          this.applyIncomingState(data.state, isInitial);
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+
+    async postSupabaseInteraction(action, detail = "") {
+      if (!this.supabaseUrl || !this.supabaseAnonKey || typeof fetch !== "function") return null;
+      try {
+        const res = await fetch(`${this.supabaseUrl}/rest/v1/rpc/moemew_interact`, {
+          method: "POST",
+          headers: this.supabaseHeaders(),
+          body: JSON.stringify({
+            p_action: action,
+            p_visitor_id: this.you.visitorId,
+            p_visitor_label: this.you.label,
+            p_detail: detail || ""
+          })
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data && data.ok && data.state) {
+          if (data.moment && data.moment.id) {
+            this.seenMomentIds.add(data.moment.id);
+          }
+          this.cacheStateLocally(data.state);
+          this.applyIncomingState(data.state, false);
+          this.sendSupabaseBroadcast("state_update", {
+            state: data.state,
+            moment: data.moment || null
+          });
+          if (data.refused && typeof this.onCloudRefusal === "function") {
+            this.onCloudRefusal(data);
+          }
+          return data;
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    async postSupabaseBowls(levels = {}) {
+      if (!this.supabaseUrl || !this.supabaseAnonKey || typeof fetch !== "function") return;
+      try {
+        await fetch(`${this.supabaseUrl}/rest/v1/rpc/moemew_sync_bowls`, {
+          method: "POST",
+          headers: this.supabaseHeaders(),
+          body: JSON.stringify({
+            p_food: typeof levels.bowlFoodLevel === "number" ? levels.bowlFoodLevel : null,
+            p_water: typeof levels.bowlWaterLevel === "number" ? levels.bowlWaterLevel : null,
+            p_meat: typeof levels.plateMeatLevel === "number" ? levels.plateMeatLevel : null
+          })
+        });
+      } catch (_) {}
+    }
+
+    connectSupabaseRealtime() {
+      if (typeof WebSocket === "undefined" || !this.supabaseUrl || !this.supabaseAnonKey) return;
+      if (this.ws && (this.ws.readyState === 0 || this.ws.readyState === 1)) return;
+
+      const wsBase = this.supabaseUrl.replace(/^https:/i, "wss:").replace(/^http:/i, "ws:");
+      const wsUrl = `${wsBase}/realtime/v1/websocket?apikey=${encodeURIComponent(this.supabaseAnonKey)}&vsn=1.0.0`;
+
+      try {
+        const ws = new WebSocket(wsUrl);
+        this.ws = ws;
+
+        ws.onopen = () => {
+          this.wsConnected = true;
+          this.wsJoined = false;
+          this.wsReconnectAttempt = 0;
+
+          // Join global room for Postgres Changes + Instant Broadcast + Online Presence!
+          this.wsSend({
+            topic: "realtime:moemew_room",
+            event: "phx_join",
+            payload: {
+              config: {
+                broadcast: { self: false },
+                presence: { key: this.you.visitorId },
+                postgres_changes: [
+                  { event: "UPDATE", schema: "public", table: "moemew_state" }
+                ]
+              },
+              access_token: this.supabaseAnonKey
+            }
+          });
+
+          if (this.wsHeartbeatTimer) clearInterval(this.wsHeartbeatTimer);
+          this.wsHeartbeatTimer = setInterval(() => {
+            if (this.ws && this.ws.readyState === 1) {
+              this.wsSend({ topic: "phoenix", event: "heartbeat", payload: {} });
+            }
+          }, 25000);
+        };
+
+        ws.onmessage = (ev) => {
+          this.handleSupabaseRealtimeMessage(ev.data);
+        };
+
+        ws.onerror = () => {};
+
+        ws.onclose = () => {
+          this.wsConnected = false;
+          this.wsJoined = false;
+          if (this.mode === "supabase") {
+            this.storageMode = "supabase-rest";
+            if (typeof this.onStateUpdate === "function") {
+              this.onStateUpdate(this.getSnapshot());
+            }
+          }
+          if (this.wsHeartbeatTimer) {
+            clearInterval(this.wsHeartbeatTimer);
+            this.wsHeartbeatTimer = null;
+          }
+          this.scheduleSupabaseReconnect();
+        };
+      } catch (_) {
+        this.scheduleSupabaseReconnect();
+      }
+    }
+
+    scheduleSupabaseReconnect() {
+      if (this.mode !== "supabase") return;
+      if (this.wsReconnectTimer) clearTimeout(this.wsReconnectTimer);
+      const delay = Math.min(15000, 2000 * Math.pow(2, this.wsReconnectAttempt));
+      this.wsReconnectAttempt++;
+      this.wsReconnectTimer = setTimeout(() => {
+        if (this.mode === "supabase") this.connectSupabaseRealtime();
+      }, delay);
+    }
+
+    wsSend(frame) {
+      if (!this.ws || this.ws.readyState !== 1) return;
+      try {
+        this.ws.send(JSON.stringify({ ...frame, ref: String(this.wsRef++) }));
+      } catch (_) {}
+    }
+
+    trackSupabasePresence() {
+      if (!this.wsJoined) return;
+      this.wsSend({
+        topic: "realtime:moemew_room",
+        event: "presence",
+        payload: {
+          type: "presence",
+          event: "track",
+          payload: {
+            visitorId: this.you.visitorId,
+            label: this.you.label,
+            onlineAt: Date.now()
+          }
+        }
+      });
+    }
+
+    sendSupabaseBroadcast(eventName, payload) {
+      if (!this.wsJoined) return;
+      this.wsSend({
+        topic: "realtime:moemew_room",
+        event: "broadcast",
+        payload: {
+          type: "broadcast",
+          event: eventName,
+          payload
+        }
+      });
+    }
+
+    handleSupabaseRealtimeMessage(rawData) {
+      let msg = null;
+      try { msg = JSON.parse(rawData); } catch (_) { return; }
+      if (!msg || !msg.event) return;
+
+      if (msg.event === "phx_reply" && msg.topic === "realtime:moemew_room") {
+        if (msg.payload && msg.payload.status === "ok" && !this.wsJoined) {
+          this.wsJoined = true;
+          this.storageMode = "supabase-realtime";
+          this.trackSupabasePresence();
+          if (typeof this.onStateUpdate === "function") {
+            this.onStateUpdate(this.getSnapshot());
+          }
+        }
+        return;
+      }
+
+      if (msg.event === "presence_state" && msg.payload && typeof msg.payload === "object") {
+        this.presenceKeys = new Set(Object.keys(msg.payload));
+        this.presenceKeys.add(this.you.visitorId);
+        this.onlineCount = Math.max(1, this.presenceKeys.size);
+        if (typeof this.onStateUpdate === "function") {
+          this.onStateUpdate(this.getSnapshot());
+        }
+        return;
+      }
+
+      if (msg.event === "presence_diff" && msg.payload && typeof msg.payload === "object") {
+        if (msg.payload.joins) {
+          for (const k of Object.keys(msg.payload.joins)) this.presenceKeys.add(k);
+        }
+        if (msg.payload.leaves) {
+          for (const k of Object.keys(msg.payload.leaves)) {
+            if (k !== this.you.visitorId) this.presenceKeys.delete(k);
+          }
+        }
+        this.presenceKeys.add(this.you.visitorId);
+        this.onlineCount = Math.max(1, this.presenceKeys.size);
+        if (typeof this.onStateUpdate === "function") {
+          this.onStateUpdate(this.getSnapshot());
+        }
+        return;
+      }
+
+      // Instant broadcast from another visitor's browser (<100ms!)
+      if (msg.event === "broadcast" && msg.payload && msg.payload.event === "state_update") {
+        const inner = msg.payload.payload;
+        if (inner && inner.state) {
+          this.cacheStateLocally(inner.state);
+          this.applyIncomingState(inner.state, false);
+        }
+        return;
+      }
+
+      // Authoritative Postgres table UPDATE event
+      if (msg.event === "postgres_changes" && msg.payload && msg.payload.data && msg.payload.data.record) {
+        const normalized = normalizeSupabaseRow(msg.payload.data.record);
+        if (normalized) {
+          const pub = this.formatPublicState(normalized);
+          this.cacheStateLocally(pub);
+          this.applyIncomingState(pub, false);
+        }
+      }
+    }
+
+    startSupabasePolling() {
+      if (this.pollTimer) clearInterval(this.pollTimer);
+      // Gentle heartbeat sync (12s when WS is live; 4s fallback if WS is blocked/reconnecting)
+      let ticks = 0;
+      this.pollTimer = setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        ticks++;
+        if (this.wsJoined && ticks % 3 !== 0) return;
+        this.fetchSupabaseState(false);
+      }, 4000);
+
+      if (typeof document !== "undefined") {
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden && this.mode === "supabase") {
+            this.fetchSupabaseState(false);
+            if (!this.wsConnected) this.connectSupabaseRealtime();
+          }
+        });
+      }
+    }
+
+    cacheStateLocally(publicState) {
+      if (!publicState) return;
+      const raw = {
+        ...createDefaultLocalState(publicState.updatedAt || Date.now()),
+        ...publicState,
+        visitors: { [this.you.visitorId]: { label: this.you.label, lastSeen: Date.now() } }
+      };
+      writePersistentJSON(STORAGE_KEY, raw);
     }
 
     async detectRealPublicIp() {
@@ -274,13 +676,19 @@
         const data = await res.json();
         if (data && data.ip) {
           this.you = buildIdentityFromIp(data.ip, "ip");
-          if (typeof sessionStorage !== "undefined") {
-            safeStorageSet(sessionStorage, SESSION_ID_KEY, JSON.stringify(this.you));
+          writePersistentJSON(VISITOR_ID_KEY, this.you);
+          if (this.mode === "static") {
+            this.syncLocalState(false);
+          } else {
+            this.presenceKeys.add(this.you.visitorId);
+            this.trackSupabasePresence();
+            if (typeof this.onStateUpdate === "function") {
+              this.onStateUpdate(this.getSnapshot());
+            }
           }
-          this.syncLocalState(false);
         }
       } catch (_) {
-        // Offline or blocked -> quietly keep local masked identity
+        // Offline or blocked -> quietly keep persistent local masked identity
       }
     }
 
@@ -333,7 +741,6 @@
             }))
           : [];
 
-        // Merge moments deduplicated by id
         const mergedMap = new Map();
         for (const m of [...importedMoments, ...(existing.moments || [])]) {
           if (m && m.id && !mergedMap.has(m.id)) mergedMap.set(m.id, m);
@@ -356,7 +763,6 @@
 
         this.saveLocalRaw(nextRaw);
 
-        // Clean hash from address bar so future reloads stay tidy
         if (typeof history !== "undefined" && history.replaceState) {
           history.replaceState(null, "", `${location.pathname}${location.search}`);
         }
@@ -392,6 +798,7 @@
           this.storageMode = data.storageMode || this.storageMode;
           this.onlineCount = data.onlineCount || 1;
           if (data.you) this.you = data.you;
+          this.cacheStateLocally(data.state);
           this.applyIncomingState(data.state, false);
         }
       } catch (_) {}
@@ -424,22 +831,14 @@
     }
 
     loadLocalRaw(now = Date.now()) {
-      let raw = null;
-      if (typeof localStorage !== "undefined") {
-        const txt = safeStorageGet(localStorage, STORAGE_KEY);
-        if (txt) {
-          try { raw = JSON.parse(txt); } catch (_) {}
-        }
-      }
+      const raw = readPersistentJSON(STORAGE_KEY);
       const s = decayState(raw || createDefaultLocalState(now), now);
       s.visitors[this.you.visitorId] = { label: this.you.label, lastSeen: now };
       return s;
     }
 
     saveLocalRaw(rawState) {
-      if (typeof localStorage !== "undefined") {
-        safeStorageSet(localStorage, STORAGE_KEY, JSON.stringify(rawState));
-      }
+      writePersistentJSON(STORAGE_KEY, rawState);
       if (this.channel) {
         try { this.channel.postMessage({ type: "state_sync", at: Date.now() }); } catch (_) {}
       }
@@ -483,6 +882,7 @@
       return {
         mode: this.mode,
         storageMode: this.storageMode,
+        wsJoined: this.wsJoined,
         you: this.you,
         onlineCount: this.onlineCount,
         state: this.state
@@ -523,8 +923,18 @@
         if (overrideVisitor && res.moment && typeof this.onRemoteMoment === "function") {
           this.onRemoteMoment(res.moment, this.state);
         }
+      } else if (this.mode === "supabase") {
+        this.state = this.formatPublicState(res.rawState);
+        this.cacheStateLocally(this.state);
+        if (typeof this.onStateUpdate === "function") {
+          this.onStateUpdate(this.getSnapshot());
+        }
+        if (!overrideVisitor) {
+          this.postSupabaseInteraction(action, customDetail);
+        }
       } else {
         this.state = this.formatPublicState(res.rawState);
+        this.cacheStateLocally(this.state);
         if (typeof this.onStateUpdate === "function") {
           this.onStateUpdate(this.getSnapshot());
         }
@@ -564,6 +974,8 @@
 
       if (this.mode === "static") {
         this.saveLocalRaw(s);
+      } else {
+        this.cacheStateLocally(this.formatPublicState(s));
       }
       this.state = this.formatPublicState(s);
       if (typeof this.onStateUpdate === "function") {
@@ -573,7 +985,7 @@
 
     /**
      * Finalizes kitty's automatic post-kibble drink: logs a single cute moment (without double-counting
-     * hydration already added per lap) and syncs with the optional cloud worker.
+     * hydration already added per lap) and syncs with Supabase or Cloudflare Worker.
      */
     finalizeAutoDrink(bowlWaterLevel = null, laps = 0) {
       const now = Date.now();
@@ -606,21 +1018,25 @@
       s.moments.unshift(moment);
       if (s.moments.length > MAX_MOMENTS) s.moments.length = MAX_MOMENTS;
 
+      this.state = this.formatPublicState(s);
       if (this.mode === "static") {
         this.saveLocalRaw(s);
+      } else {
+        this.cacheStateLocally(this.state);
       }
-      this.state = this.formatPublicState(s);
       if (typeof this.onStateUpdate === "function") {
         this.onStateUpdate(this.getSnapshot());
       }
-      if (this.mode === "cloud") {
+      if (this.mode === "supabase") {
+        this.postSupabaseInteraction("auto_sip", "");
+      } else if (this.mode === "cloud") {
         this.postCloudInteraction("auto_sip", "");
       }
       return this.state;
     }
 
     /**
-     * Persists post-meal bowl/plate levels so periodic digestion sync never refills emptied bowls!
+     * Persists post-meal bowl/plate levels so periodic digestion sync & page refresh never refill emptied bowls!
      */
     syncBowlLevels(levels = {}) {
       const now = Date.now();
@@ -632,10 +1048,15 @@
       if (typeof levels.bowlWaterLevel === "number") s.bowlWaterLevel = clamp(levels.bowlWaterLevel, 0, 1);
       if (typeof levels.plateMeatLevel === "number") s.plateMeatLevel = clamp(levels.plateMeatLevel, 0, 1);
 
+      this.state = this.formatPublicState(s);
       if (this.mode === "static") {
         this.saveLocalRaw(s);
+      } else {
+        this.cacheStateLocally(this.state);
+        if (this.mode === "supabase") {
+          this.postSupabaseBowls(levels);
+        }
       }
-      this.state = this.formatPublicState(s);
     }
 
     applyLocalMutation(s, visitor, action, customDetail, now) {
@@ -778,7 +1199,11 @@
           this.onlineCount = data.onlineCount || 1;
           if (data.you) this.you = data.you;
           if (data.moment && data.moment.id) this.seenMomentIds.add(data.moment.id);
+          this.cacheStateLocally(data.state);
           this.applyIncomingState(data.state, false);
+          if (data.refused && typeof this.onCloudRefusal === "function") {
+            this.onCloudRefusal(data);
+          }
         }
       } catch (_) {}
     }

@@ -240,12 +240,15 @@
         momentsStatusBadge.textContent = state.isFull ? "已吃饱" : `${state.fullness}%`;
       }
       if (syncModeBadge) {
-        const modeLabel = mode === "cloud"
-          ? (storageMode === "kv" ? "云端KV实时" : "云端跨域同步")
-          : "纯静态共享";
-        syncModeBadge.textContent = mode === "cloud"
-          ? `${modeLabel} · ${onlineCount}人在线`
-          : `${modeLabel} · ${onlineCount}窗`;
+        if (mode === "supabase") {
+          const modeLabel = storageMode === "supabase-realtime" ? "全站实时" : "云端同步";
+          syncModeBadge.textContent = `${modeLabel} · ${onlineCount}人在线`;
+        } else if (mode === "cloud") {
+          const modeLabel = storageMode === "kv" ? "云端KV实时" : "云端同步";
+          syncModeBadge.textContent = `${modeLabel} · ${onlineCount}人在线`;
+        } else {
+          syncModeBadge.textContent = `本地持久 · ${onlineCount}窗`;
+        }
       }
       if (visitorIdentityLine && you) {
         visitorIdentityLine.textContent = `你的身份：${you.label}`;
@@ -383,6 +386,9 @@
         whisper(`🐾 ${moment.label} ${moment.text}`);
         if (state) world.syncSharedLevels(state);
       };
+      social.onCloudRefusal = (res) => {
+        showFullRefusalFeedback(res);
+      };
       social.init();
     }
 
@@ -403,6 +409,26 @@
       }
     };
 
+    function showFullRefusalFeedback(res) {
+      cat.refuseFoodFull(res.reason === "hydrated" ? "hydrated" : "full");
+      const s = cat.getScale();
+      world.spawnSparkles(cat.x, cat.y - 78 * s, 6, ["#F7B5C4", "#FFE28A", "#B6DDF2"]);
+
+      if (res.reason === "hydrated") {
+        if (res.lastDrankBy && !res.isSameVisitor) {
+          whisper(`喵喵刚喝完【${res.lastDrankBy.label}】倒的清水，摇摇头表示现在不渴啦 💧`);
+        } else {
+          whisper("刚才已经喝得水饱啦，喵喵晃晃脑袋表示不渴咯 💧");
+        }
+      } else {
+        if (res.lastFedBy && !res.isSameVisitor) {
+          whisper(`喵喵刚被【${res.lastFedBy.label}】喂得圆滚滚的啦，捂着肚皮打了个饱嗝~（玩耍消食或约${res.minutesUntilHungry || 2}分钟后再喂）`);
+        } else {
+          whisper("已经吃得圆滚滚啦，喵喵捂着肚皮摆摆爪拒食咯~ 陪它玩会儿激光点帮它消化吧 🫧");
+        }
+      }
+    }
+
     /**
      * Checks shared fullness / hydration before feeding or pouring water.
      * If another visitor (or yourself) just fed kitty full, kitty pats its round belly & refuses!
@@ -414,23 +440,7 @@
       }
       const res = social.recordInteraction(action);
       if (res.refused) {
-        cat.refuseFoodFull(res.reason === "hydrated" ? "hydrated" : "full");
-        const s = cat.getScale();
-        world.spawnSparkles(cat.x, cat.y - 78 * s, 6, ["#F7B5C4", "#FFE28A", "#B6DDF2"]);
-
-        if (res.reason === "hydrated") {
-          if (res.lastDrankBy && !res.isSameVisitor) {
-            whisper(`喵喵刚喝完【${res.lastDrankBy.label}】倒的清水，摇摇头表示现在不渴啦 💧`);
-          } else {
-            whisper("刚才已经喝得水饱啦，喵喵晃晃脑袋表示不渴咯 💧");
-          }
-        } else {
-          if (res.lastFedBy && !res.isSameVisitor) {
-            whisper(`喵喵刚被【${res.lastFedBy.label}】喂得圆滚滚的啦，捂着肚皮打了个饱嗝~（玩耍消食或约${res.minutesUntilHungry}分钟后再喂）`);
-          } else {
-            whisper("已经吃得圆滚滚啦，喵喵捂着肚皮摆摆爪拒食咯~ 陪它玩会儿激光点帮它消化吧 🫧");
-          }
-        }
+        showFullRefusalFeedback(res);
         return false;
       }
       onAccepted(res);
