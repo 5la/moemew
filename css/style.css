@@ -293,6 +293,332 @@ body[data-cursor="laser"] .stage-canvas {
 }
 
 /* ==========================================================================
+   Shared Moments Pill & Collapsible Frosted Glass Drawer
+   ========================================================================== */
+
+.moments-pill {
+  border: 1px solid var(--surface-border);
+  color: var(--ink-primary);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  height: 36px;
+  padding: 0 11px;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.22s ease, background 0.35s ease, border-color 0.35s ease;
+}
+
+.moments-pill:hover {
+  transform: translateY(-1px);
+}
+
+.moments-pill.pulse {
+  animation: pill-pulse 0.65s ease;
+}
+
+@keyframes pill-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.online-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6CC484;
+  box-shadow: 0 0 0 3px rgba(108, 196, 132, 0.22);
+  flex-shrink: 0;
+  transition: background 0.35s ease, box-shadow 0.35s ease;
+}
+
+.online-dot.is-full {
+  background: #EC8478;
+  box-shadow: 0 0 0 3px rgba(236, 132, 120, 0.26);
+}
+
+.moments-pill-badge {
+  font-size: 0.71rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(120, 110, 102, 0.11);
+  color: var(--ink-secondary);
+  white-space: nowrap;
+}
+
+.moments-pill-badge.is-full {
+  background: rgba(240, 132, 118, 0.22);
+  color: #C45247;
+}
+
+html[data-theme="night"] .moments-pill-badge.is-full {
+  color: #FFB2A8;
+}
+
+.moments-drawer {
+  position: fixed;
+  top: calc(max(18px, env(safe-area-inset-top, 18px)) + 48px);
+  right: max(24px, env(safe-area-inset-right, 24px));
+  width: min(344px, calc(100vw - 28px));
+  max-height: calc(100dvh - 150px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 15px;
+  border-radius: 20px;
+  background: var(--surface-glass);
+  border: 1px solid var(--surface-border);
+  box-shadow: 0 18px 46px rgba(26, 24, 34, 0.14);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  color: var(--ink-primary);
+  pointer-events: auto;
+  animation: drawer-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.moments-drawer[hidden] {
+  display: none;
+}
+
+@keyframes drawer-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drawer-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.drawer-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sync-badge {
+  font-size: 0.68rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(108, 196, 132, 0.16);
+  color: var(--ink-secondary);
+}
+
+.drawer-close {
+  border: none;
+  background: transparent;
+  color: var(--ink-secondary);
+  font-size: 1.25rem;
+  line-height: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.drawer-close:hover {
+  background: rgba(128, 120, 112, 0.12);
+  color: var(--ink-primary);
+}
+
+.drawer-identity {
+  font-size: 0.74rem;
+  color: var(--ink-secondary);
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(135, 125, 115, 0.08);
+}
+
+.vitals-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px 11px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid var(--surface-border);
+}
+
+html[data-theme="night"] .vitals-card {
+  background: rgba(18, 22, 36, 0.42);
+}
+
+.vital-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 38px;
+  align-items: center;
+  gap: 8px;
+}
+
+.vital-label {
+  font-size: 0.73rem;
+  color: var(--ink-secondary);
+}
+
+.vital-track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(120, 112, 108, 0.15);
+  overflow: hidden;
+}
+
+.vital-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1), background 0.35s ease;
+}
+
+.fill-food { background: linear-gradient(90deg, #E8B16E, #E8876E); }
+.fill-food.is-full { background: linear-gradient(90deg, #EB7D6E, #D9534F); }
+.fill-water { background: linear-gradient(90deg, #88CCF0, #5FAFE0); }
+.fill-happy { background: linear-gradient(90deg, #F2A3B8, #E67696); }
+
+.vital-val {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: right;
+  color: var(--ink-primary);
+}
+
+.vitals-tip {
+  font-size: 0.7rem;
+  color: var(--ink-secondary);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.drawer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drawer-sub {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--ink-secondary);
+}
+
+.sim-btn {
+  border: 1px solid var(--surface-border);
+  background: rgba(240, 148, 126, 0.16);
+  color: var(--ink-primary);
+  font-family: inherit;
+  font-size: 0.69rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.sim-btn:hover {
+  background: rgba(240, 148, 126, 0.28);
+}
+
+.share-btn {
+  background: rgba(116, 186, 232, 0.17);
+}
+
+.share-btn:hover {
+  background: rgba(116, 186, 232, 0.29);
+}
+
+.moments-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  max-height: 248px;
+  padding-right: 2px;
+  touch-action: pan-y;
+}
+
+.moment-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.36);
+  border: 1px solid var(--surface-border);
+  font-size: 0.74rem;
+  line-height: 1.42;
+}
+
+html[data-theme="night"] .moment-item {
+  background: rgba(20, 25, 40, 0.48);
+}
+
+.moment-item.refused {
+  background: rgba(244, 148, 134, 0.14);
+}
+
+.moment-icon {
+  font-size: 0.96rem;
+  line-height: 1.25;
+  flex-shrink: 0;
+}
+
+.moment-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.moment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.moment-who {
+  font-weight: 600;
+  font-size: 0.72rem;
+  color: var(--ink-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moment-time {
+  font-size: 0.66rem;
+  color: var(--ink-secondary);
+  flex-shrink: 0;
+}
+
+.moment-text {
+  color: var(--ink-secondary);
+  word-break: break-word;
+}
+
+.moment-empty {
+  text-align: center;
+  padding: 20px 10px;
+  font-size: 0.75rem;
+  color: var(--ink-secondary);
+}
+
+/* ==========================================================================
    Subtle Whisper Status & Bottom Minimalist Dock
    ========================================================================== */
 
@@ -452,6 +778,15 @@ body[data-cursor="laser"] .stage-canvas {
 
   .music-btn {
     padding: 0 8px;
+  }
+
+  .moments-pill-label {
+    display: none;
+  }
+
+  .moments-drawer {
+    right: 12px;
+    top: calc(max(12px, env(safe-area-inset-top, 12px)) + 46px);
   }
 
   .hud-bottom {
