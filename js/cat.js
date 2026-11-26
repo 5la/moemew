@@ -141,6 +141,10 @@
       this.drinkSideDir = -1;
       this.refuseKind = "full"; // "full" | "hydrated"
       this.refusePhase = 0;
+      this.fullness = 30;
+      this.hungryKind = "hungry"; // "hungry" | "empty_bowl"
+      this.hungryPhase = 0;
+      this.hungryBubbleIdx = 0;
 
       // Paw lift (when batting ball/wand/bubble)
       this.batTimer = 0;
@@ -249,6 +253,17 @@
 
     chooseNextWhim() {
       const r = Math.random();
+      // When tummy is empty (fullness <= 28), kitty frequently begs adorably or trots to the food bowl!
+      if (this.fullness <= 28) {
+        if (r < 0.34) {
+          this.begForFood("hungry", 3.6 + Math.random() * 1.0);
+          return;
+        }
+        if (r < 0.56 && this.onCatEvent) {
+          this.onCatEvent("want_beg_bowl");
+          return;
+        }
+      }
       if (this.theme === "night" && r < 0.28) {
         this.enterState("lie", 5.5 + Math.random() * 5.0);
       } else if (r < 0.38) {
@@ -371,6 +386,10 @@
     }
 
     performNextTrick() {
+      if (this.fullness <= 28 && this.state !== "hungry_beg") {
+        this.begForFood("hungry", 3.8);
+        return { action: "hungry", msg: "肚子咕噜噜饿啦~ 竖起小爪子泪汪汪地向你讨食 🥺" };
+      }
       const tricks = ["jump", "roll", "spin", "lie", "sit"];
       const t = tricks[this.trickCycleIdx % tricks.length];
       this.trickCycleIdx++;
@@ -594,6 +613,47 @@
       this.earRight.target = 12;
       this.squish.impulse(0.45);
       if (window.MoeAudio) window.MoeAudio.playFullBurp();
+    }
+
+    /**
+     * Heart-melting hungry begging pose: teary sparkling eyes, droopy ears,
+     * tummy-rubbing paw + raised pleading paw, rumble waves & fish thought bubble!
+     */
+    begForFood(kind = "hungry", duration = 3.8) {
+      this.state = "hungry_beg";
+      this.stateTimer = duration;
+      this.hungryKind = kind === "empty_bowl" ? "empty_bowl" : "hungry";
+      this.hungryPhase = 0;
+      this.hungryBubbleIdx = (this.hungryBubbleIdx + 1) % 3;
+      this.vx *= 0.15;
+      this.vy *= 0.15;
+      this.idleSleepTimer = 0;
+      this.happyTimer = 0;
+      this.blush.target = 0.68;
+      this.pupilSize.target = 1.18;
+      this.earLeft.target = -22;
+      this.earRight.target = 22;
+      this.squish.impulse(0.24);
+      if (window.MoeAudio) window.MoeAudio.playHungryMeow();
+    }
+
+    goToEmptyBowlAndBeg(foodBowlX, foodBowlY) {
+      const b = this.getFloorBounds();
+      const s = this.getScale();
+      this.goal = {
+        x: clamp(foodBowlX - 54 * s, b.minX + 12, b.maxX - 12),
+        y: clamp(foodBowlY + 6, b.minY + 4, b.maxY - 12)
+      };
+      this.idleSleepTimer = 0;
+      if (Math.hypot(this.goal.x - this.x, this.goal.y - this.y) < 34 * s) {
+        this.begForFood("empty_bowl", 4.0);
+        return;
+      }
+      this.state = "go_beg_bowl";
+      this.stateTimer = 8.0;
+      this.pupilSize.target = 1.16;
+      this.earLeft.target = -14;
+      this.earRight.target = 14;
     }
 
     followWand(wx, wy) {
@@ -848,6 +908,22 @@
             this.earRight.target = 0;
             this.enterState("sit", 3.2);
           }
+        } else if (this.state === "hungry_beg") {
+          // Teary-eyed hungry begging: pleading paw wave, soft tummy rumble, then cozy wait!
+          this.hungryPhase += dt;
+          this.vx = damp(this.vx, 0, 12, dt);
+          this.vy = damp(this.vy, 0, 12, dt);
+          this.strideAmp = damp(this.strideAmp, 0, 12, dt);
+          this.blush.target = 0.68;
+          this.pupilSize.target = 1.18;
+          this.earLeft.target = -22;
+          this.earRight.target = 22;
+          if (this.stateTimer <= 0) {
+            this.earLeft.target = 0;
+            this.earRight.target = 0;
+            this.pupilSize.target = 1.0;
+            this.enterState("sit", 3.0);
+          }
         } else if (this.state === "lie") {
           this.vx = damp(this.vx, 0, 10, dt);
           this.vy = damp(this.vy, 0, 10, dt);
@@ -870,7 +946,8 @@
             this.state === "catnip" ||
             this.state === "go_bowl" ||
             this.state === "go_water" ||
-            this.state === "go_fish_plate";
+            this.state === "go_fish_plate" ||
+            this.state === "go_beg_bowl";
 
           let desiredVx = 0;
           let desiredVy = 0;
@@ -880,13 +957,15 @@
             const dy = this.goal.y - this.y;
             const dist = Math.hypot(dx, dy);
             const stopR =
-              this.state === "go_bowl" || this.state === "go_water" || this.state === "go_fish_plate"
-                ? 16 * scale
+              this.state === "go_bowl" || this.state === "go_water" || this.state === "go_fish_plate" || this.state === "go_beg_bowl"
+                ? 18 * scale
                 : (this.state === "chase_fish" || this.state === "chase_ball" || this.state === "catnip" ? 22 * scale : 24 * scale);
 
             if (dist <= stopR) {
               if (this.state === "call") {
                 this.enterState("sit", 4.2);
+              } else if (this.state === "go_beg_bowl") {
+                this.begForFood("empty_bowl", 4.0);
               } else if (this.state === "go_bowl") {
                 this.state = "eat_bowl";
                 this.stateTimer = 3.8;
@@ -926,6 +1005,7 @@
             } else {
               let maxSpeed = 94 * scale;
               if (this.state === "trot" || this.state === "call") maxSpeed = 162 * scale;
+              if (this.state === "go_beg_bowl") maxSpeed = 132 * scale;
               if (
                 this.state === "chase_fish" ||
                 this.state === "chase_ball" ||
@@ -1052,7 +1132,7 @@
       }
 
       if (this.munchTimer > 0) this.headPitch.target = 0.5;
-      if (this.happyTimer <= 0) {
+      if (this.happyTimer <= 0 && this.state !== "hungry_beg" && this.state !== "full_refuse") {
         this.earLeft.target = 0;
         this.earRight.target = 0;
         this.blush.target = 0.38;
@@ -1066,7 +1146,11 @@
         this.state === "catnip" ||
         this.state === "spin" ||
         this.state === "jump";
-      this.pupilSize.target = excited ? 1.18 : (this.theme === "night" ? 1.12 : 1.0);
+      if (this.state === "hungry_beg") {
+        this.pupilSize.target = 1.15;
+      } else {
+        this.pupilSize.target = excited ? 1.18 : (this.theme === "night" ? 1.12 : 1.0);
+      }
 
       this.headYaw.update(dt);
       this.headPitch.update(dt);
@@ -1121,6 +1205,8 @@
         this.renderJumpPose(ctx, isNight);
       } else if (this.state === "full_refuse") {
         this.renderFullRefusePose(ctx, isNight);
+      } else if (this.state === "hungry_beg") {
+        this.renderHungryBegPose(ctx, isNight);
       } else if (this.state === "eat_bowl") {
         this.renderBowlPose(ctx, isNight, false, 1);
       } else if (this.state === "eat_fish_plate") {
@@ -2157,6 +2243,213 @@
     }
 
     // -------------------------------------------------------------------------
+    // POSE 10: Heart-Melting Hungry Begging Pose ("饿肚肚讨食 · 泪汪汪 · 咕噜噜想吃鱼")
+    // -------------------------------------------------------------------------
+
+    renderHungryBegPose(ctx, isNight) {
+      const outlineCol = isNight ? "rgba(255, 255, 255, 0.20)" : "rgba(136, 126, 116, 0.44)";
+      const p = this.hungryPhase;
+      // Gentle periodic tummy-rumble tremor ("咕噜噜")
+      const rumbleBurst = Math.max(0, Math.sin(p * 3.1 - 0.4));
+      const tremorX = Math.sin(p * 26) * 1.15 * rumbleBurst;
+      const begBob = Math.sin(p * 6.4) * 3.6;
+      const rubY = Math.sin(p * 4.8) * 2.2;
+      const headTilt = -0.14 + Math.sin(p * 2.5) * 0.045;
+      const breath = Math.sin(p * 2.8) * 1.1;
+
+      // 1. Soft droopy tail resting low to the right
+      this.drawCurvedTail(ctx, 27, -12, 1, false);
+
+      // 2. Slightly slimmer upright begging body with snowy-white hungry belly & blue-grey back
+      ctx.save();
+      ctx.translate(tremorX * 0.45, 0);
+      ctx.beginPath();
+      ctx.moveTo(-19, -68);
+      ctx.bezierCurveTo(-32, -52, -33, -20, -21, -4);
+      ctx.quadraticCurveTo(0, 1, 23, -4);
+      ctx.bezierCurveTo(36, -16, 36, -45, 24, -64);
+      ctx.quadraticCurveTo(16, -70, -19, -68);
+      ctx.closePath();
+
+      ctx.strokeStyle = outlineCol;
+      ctx.lineWidth = 2.6;
+      ctx.stroke();
+
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = "#FCFBF8";
+      ctx.fillRect(-44, -76, 88, 86);
+      // Blue-grey back & right haunch
+      ctx.fillStyle = "#454B5A";
+      ctx.beginPath();
+      ctx.moveTo(16, -74);
+      ctx.bezierCurveTo(15, -48, 15, -24, 16, 6);
+      ctx.lineTo(48, 6);
+      ctx.lineTo(48, -74);
+      ctx.closePath();
+      ctx.fill();
+
+      // Subtle empty-tummy soft shadow crescent showing a hungry flat tummy
+      ctx.fillStyle = "rgba(210, 200, 196, 0.24)";
+      ctx.beginPath();
+      ctx.ellipse(-3, -26, 13, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Delicate tummy-rumble vibration arcs ("咕噜噜~") beside waist during rumble pulse!
+      if (rumbleBurst > 0.22) {
+        ctx.save();
+        ctx.globalAlpha = clamp((rumbleBurst - 0.22) * 1.1, 0, 0.78);
+        ctx.strokeStyle = isNight ? "#F4C28C" : "#D4886A";
+        ctx.lineWidth = 1.6;
+        ctx.lineCap = "round";
+        // Left rumble pair
+        ctx.beginPath();
+        ctx.arc(-34, -27, 7, Math.PI * 0.74, Math.PI * 1.26);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(-39, -27, 10.5, Math.PI * 0.78, Math.PI * 1.22);
+        ctx.stroke();
+        // Right rumble pair
+        ctx.beginPath();
+        ctx.arc(34, -27, 7, -Math.PI * 0.26, Math.PI * 0.26);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(39, -27, 10.5, -Math.PI * 0.22, Math.PI * 0.22);
+        ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+
+      // 3. Two tucked snowy-white hind feet peeking neatly at the bottom
+      const drawFoot = (fx, fy) => {
+        ctx.save();
+        ctx.fillStyle = outlineCol;
+        ctx.beginPath();
+        ctx.ellipse(fx, fy, 10.8, 6.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#FCFBF8";
+        ctx.beginPath();
+        ctx.ellipse(fx, fy - 0.3, 9.4, 5.0, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#F5A0B3";
+        ctx.beginPath();
+        ctx.arc(fx, fy + 0.4, 2.0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      };
+      drawFoot(-18, -2.5);
+      drawFoot(19, -2.5);
+
+      // 4. Viewer's Right Front Paw (FL with iconic blue-grey forearm sleeve!) curled gently over hungry tummy
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.strokeStyle = outlineCol;
+      ctx.lineWidth = 15.0;
+      ctx.beginPath();
+      ctx.moveTo(22, -45);
+      ctx.quadraticCurveTo(18, -32, 4, -27 + rubY);
+      ctx.stroke();
+      ctx.strokeStyle = "#FCFBF8";
+      ctx.lineWidth = 12.6;
+      ctx.stroke();
+      // Signature blue-grey sleeve band on FL forearm
+      ctx.strokeStyle = "#454B5A";
+      ctx.lineWidth = 12.6;
+      ctx.beginPath();
+      ctx.moveTo(19, -40);
+      ctx.quadraticCurveTo(16, -34, 12, -31 + rubY * 0.5);
+      ctx.stroke();
+      ctx.restore();
+
+      // 5. Viewer's Left Front Paw (FR white + ankle spot) lifted clearly beside cheek in an adorable begging wave!
+      ctx.save();
+      ctx.lineCap = "round";
+      const pawTipX = -46;
+      const pawTipY = -49 + begBob;
+      ctx.strokeStyle = outlineCol;
+      ctx.lineWidth = 15.0;
+      ctx.beginPath();
+      ctx.moveTo(-22, -43);
+      ctx.quadraticCurveTo(-37, -38, pawTipX, pawTipY);
+      ctx.stroke();
+      ctx.strokeStyle = "#FCFBF8";
+      ctx.lineWidth = 12.6;
+      ctx.stroke();
+      // Signature small ankle spot near wrist
+      ctx.fillStyle = "#454B5A";
+      ctx.beginPath();
+      ctx.ellipse(-37, -43 + begBob * 0.48, 2.5, 3.4, -0.45, 0, Math.PI * 2);
+      ctx.fill();
+      // Tiny soft pink toe-bean peek on the upturned begging paw!
+      ctx.fillStyle = "#F5A0B3";
+      ctx.beginPath();
+      ctx.ellipse(pawTipX - 0.5, pawTipY - 0.8, 3.2, 2.4, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 6. Expressive Tilted Head with Teary Sparkling Puppy-Cat Eyes!
+      ctx.save();
+      ctx.translate(-2 + tremorX * 0.5, -86 + breath);
+      ctx.rotate(headTilt);
+      this.drawHead(ctx, 0, 0, -0.08, false);
+      ctx.restore();
+
+      // 7. Crisp Floating Warm Cream Food-Dream Bubble (mini salmon/fish icon + "饿啦~想干饭") clear of ears!
+      const bubAlpha = Math.min(1, p * 4, this.stateTimer * 2.5);
+      if (bubAlpha > 0.05) {
+        const bobY = -148 - Math.sin(p * 3.0) * 3.5;
+        const bx = 90;
+        ctx.save();
+        ctx.globalAlpha = clamp(bubAlpha, 0, 1);
+
+        ctx.fillStyle = isNight ? "rgba(44, 48, 70, 0.92)" : "rgba(255, 252, 246, 0.96)";
+        ctx.strokeStyle = isNight ? "rgba(255, 214, 165, 0.34)" : "rgba(232, 178, 128, 0.78)";
+        ctx.lineWidth = 1.5;
+
+        // Trailing cloud dots cleanly outward from kitty's cheek
+        ctx.beginPath(); ctx.arc(47, bobY + 28, 3.0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(58, bobY + 20, 4.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+        // Rounded dream pill
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(bx - 48, bobY - 15, 96, 28, 14) : ctx.rect(bx - 48, bobY - 15, 96, 28);
+        ctx.fill();
+        ctx.stroke();
+
+        // Crisp hand-drawn little coral fish icon inside left side of pill!
+        const fx = bx - 33;
+        const fy = bobY - 1;
+        ctx.fillStyle = "#F08C6C";
+        ctx.beginPath();
+        ctx.ellipse(fx, fy, 6.2, 3.8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(fx - 5.2, fy);
+        ctx.lineTo(fx - 9.8, fy - 3.6);
+        ctx.lineTo(fx - 9.8, fy + 3.6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#FFFFFF";
+        ctx.beginPath();
+        ctx.arc(fx + 2.6, fy - 0.8, 1.0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Clean Chinese begging label
+        const labels = this.hungryKind === "empty_bowl"
+          ? ["碗空啦~", "想吃猫粮", "饿肚肚啦"]
+          : ["饿啦~想干饭", "肚子咕噜噜", "想吃小鱼干"];
+        const text = labels[this.hungryBubbleIdx % labels.length];
+        ctx.fillStyle = isNight ? "#FFF2E2" : "#6A483A";
+        ctx.font = "600 11px 'PingFang SC', 'Microsoft YaHei', sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, fx + 10, bobY - 0.5);
+        ctx.restore();
+      }
+    }
+
+    // -------------------------------------------------------------------------
     // Shared Torso, Leg, Tail & Head Helpers
     // -------------------------------------------------------------------------
 
@@ -2625,7 +2918,8 @@
 
       const gx = this.headYaw.value * 2.2;
       const gy = this.headPitch.value * 1.8;
-      const pr = 5.4 * this.pupilSize.value;
+      const isHungryBeg = this.state === "hungry_beg";
+      const pr = (isHungryBeg ? 5.9 : 5.4) * this.pupilSize.value;
 
       ctx.fillStyle = "#14131A";
       ctx.beginPath();
@@ -2634,11 +2928,26 @@
 
       ctx.fillStyle = "#FFFFFF";
       ctx.beginPath();
-      ctx.arc(gx - 2.4, gy - 2.5, 2.0, 0, Math.PI * 2);
+      ctx.arc(gx - 2.4, gy - 2.5, isHungryBeg ? 2.45 : 2.0, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(gx + 2.1, gy + 2.1, 0.9, 0, Math.PI * 2);
+      ctx.arc(gx + 2.1, gy + 2.1, isHungryBeg ? 1.15 : 0.9, 0, Math.PI * 2);
       ctx.fill();
+
+      if (isHungryBeg) {
+        // Extra teary starry shimmer + watery lower-rim highlight ("泪汪汪求投喂!")
+        const shimmer = 0.68 + Math.sin(this.hungryPhase * 5.2) * 0.25;
+        ctx.fillStyle = `rgba(255, 255, 255, ${shimmer.toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(gx + 2.4, gy - 2.6, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(225, 246, 255, ${(shimmer * 0.92).toFixed(2)})`;
+        ctx.lineWidth = 1.65;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(0, 1.2, 6.8, 0.35, Math.PI - 0.35);
+        ctx.stroke();
+      }
 
       if (this.isBlinking) {
         const close = Math.sin(this.blinkProg);
@@ -2647,6 +2956,21 @@
       }
 
       ctx.restore();
+
+      if (isHungryBeg) {
+        // Gentle worried/pleading slanted little brow accent above inner eye corner
+        const sgn = ex < 0 ? 1 : -1;
+        ctx.save();
+        ctx.translate(ex, ey);
+        ctx.strokeStyle = "rgba(42, 46, 58, 0.58)";
+        ctx.lineWidth = 1.6;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(sgn * 1.2, -10.8);
+        ctx.quadraticCurveTo(sgn * 4.5, -10.4, sgn * 7.2, -8.4);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 

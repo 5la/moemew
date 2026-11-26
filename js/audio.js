@@ -932,6 +932,106 @@
     }
 
     /**
+     * Heart-melting pleading hungry kitten meow ("喵呜~") + tiny soft tummy rumble ("咕噜噜")
+     * Runs strictly inside runWhenAudible so mouth opening stays 100% locked to vocalization!
+     */
+    playHungryMeow() {
+      this.runWhenAudible(() => {
+        const now = this.ctx.currentTime;
+        const dur = 0.44;
+
+        // 1. Pleading tender ascending-then-drooping kitten whine ("m-eee-oww~")
+        const osc = this.ctx.createOscillator();
+        const sub = this.ctx.createOscillator();
+        const f1 = this.ctx.createBiquadFilter();
+        const f2 = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+        const subGain = this.ctx.createGain();
+
+        osc.type = "sawtooth";
+        sub.type = "sine";
+
+        const jitter = 0.97 + Math.random() * 0.06;
+        const fStart = 640 * jitter;
+        const fPeak = 890 * jitter;
+        const fEnd = 505 * jitter;
+
+        osc.frequency.setValueAtTime(fStart, now);
+        osc.frequency.exponentialRampToValueAtTime(fPeak, now + dur * 0.30);
+        osc.frequency.exponentialRampToValueAtTime(fEnd, now + dur);
+
+        sub.frequency.setValueAtTime(fStart, now);
+        sub.frequency.exponentialRampToValueAtTime(fPeak, now + dur * 0.30);
+        sub.frequency.exponentialRampToValueAtTime(fEnd, now + dur);
+
+        f1.type = "bandpass";
+        f1.Q.value = 3.4;
+        f1.frequency.setValueAtTime(920, now);
+        f1.frequency.exponentialRampToValueAtTime(1520, now + dur * 0.32);
+        f1.frequency.exponentialRampToValueAtTime(760, now + dur);
+
+        f2.type = "lowpass";
+        f2.frequency.setValueAtTime(2400, now);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(0.18, now + 0.045);
+        gain.gain.setValueAtTime(0.16, now + dur * 0.58);
+        gain.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+
+        subGain.gain.value = 0.14;
+
+        osc.connect(f1);
+        f1.connect(f2);
+        f2.connect(gain);
+        sub.connect(subGain);
+        subGain.connect(gain);
+        gain.connect(this.sfxGain);
+
+        osc.start(now);
+        sub.start(now);
+        osc.stop(now + dur + 0.03);
+        sub.stop(now + dur + 0.03);
+
+        // 2. Cute soft tummy-rumble underneath ("咕噜~")
+        const rumble = this.ctx.createOscillator();
+        const rLfo = this.ctx.createOscillator();
+        const rLfoGain = this.ctx.createGain();
+        const rFilter = this.ctx.createBiquadFilter();
+        const rGain = this.ctx.createGain();
+
+        rumble.type = "triangle";
+        rumble.frequency.setValueAtTime(74, now);
+        rumble.frequency.exponentialRampToValueAtTime(48, now + 0.38);
+
+        rLfo.type = "sine";
+        rLfo.frequency.value = 18;
+        rLfoGain.gain.value = 0.045;
+
+        rFilter.type = "lowpass";
+        rFilter.frequency.value = 185;
+
+        rGain.gain.setValueAtTime(0.0001, now);
+        rGain.gain.linearRampToValueAtTime(0.095, now + 0.06);
+        rGain.gain.exponentialRampToValueAtTime(0.0005, now + 0.40);
+
+        rLfo.connect(rLfoGain);
+        rLfoGain.connect(rGain.gain);
+        rumble.connect(rFilter);
+        rFilter.connect(rGain);
+        rGain.connect(this.sfxGain);
+
+        rumble.start(now);
+        rLfo.start(now);
+        rumble.stop(now + 0.42);
+        rLfo.stop(now + 0.42);
+
+        if (typeof this.onCatVocalize === "function") {
+          this.onCatVocalize(dur, "hungry");
+        }
+      });
+    }
+
+    /**
      * Soft boing for yarn ball bounce or cat grass wiggle
      */
     playBoing(pitchScale = 1) {

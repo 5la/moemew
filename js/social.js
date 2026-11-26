@@ -23,6 +23,7 @@
   const MAX_MOMENTS = 40;
 
   const FULL_REFUSE_THRESHOLD = 88;
+  const HUNGRY_THRESHOLD = 28;
   const WATER_REFUSE_THRESHOLD = 92;
   const FULLNESS_DIGEST_PER_MIN = 4.5;
   const HYDRATION_DECAY_PER_MIN = 3.2;
@@ -51,6 +52,7 @@
     wand:            { kind: "play",       full: -6, water: -2, happy: 10, icon: "🪶", text: "高举逗猫羽引得喵喵轻盈腾空扑抓" },
     ball:            { kind: "play",       full: -6, water: -2, happy: 9,  icon: "🧶", text: "和喵喵在客厅玩起了毛毡球接力赛" },
     trick:           { kind: "play",       full: -5, water: -1, happy: 8,  icon: "✨", text: "逗喵喵表演了拿手绝活" },
+    hungry_beg:      { kind: "play",       full: 0,  water: 0,  happy: 0,  icon: "🥺", text: "被喵喵泪汪汪举起小爪讨食啦，肚子咕噜噜叫" },
     prop:            { kind: "play",       full: 0,  water: 0,  happy: 4,  icon: "🏡", text: "轻点了客厅里的温馨小摆件" }
   };
 
@@ -300,6 +302,7 @@
         hydration: Math.round(raw.hydration),
         happiness: Math.round(raw.happiness),
         isFull: raw.fullness >= FULL_REFUSE_THRESHOLD,
+        isHungry: raw.fullness <= HUNGRY_THRESHOLD,
         isHydrated: raw.hydration >= WATER_REFUSE_THRESHOLD,
         bowlFoodLevel: raw.bowlFoodLevel ?? 0.25,
         bowlWaterLevel: raw.bowlWaterLevel ?? 0.35,

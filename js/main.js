@@ -229,15 +229,23 @@
 
     // 3B. Multi-Visitor Shared State, Fullness Check & Moments Drawer Wiring
     const social = window.MoeSocial || null;
+    let prevHungryState = null;
+    let hungryBegCueTimer = null;
 
     function renderMomentsUI(snapshot) {
       if (!snapshot || !snapshot.state) return;
       const { mode, storageMode, you, onlineCount, state } = snapshot;
+      const isFull = Boolean(state.isFull);
+      const isHungry = Boolean(!isFull && (state.isHungry || state.fullness <= 28));
 
-      if (onlineDot) onlineDot.classList.toggle("is-full", Boolean(state.isFull));
+      if (onlineDot) {
+        onlineDot.classList.toggle("is-full", isFull);
+        onlineDot.classList.toggle("is-hungry", isHungry);
+      }
       if (momentsStatusBadge) {
-        momentsStatusBadge.classList.toggle("is-full", Boolean(state.isFull));
-        momentsStatusBadge.textContent = state.isFull ? "已吃饱" : `${state.fullness}%`;
+        momentsStatusBadge.classList.toggle("is-full", isFull);
+        momentsStatusBadge.classList.toggle("is-hungry", isHungry);
+        momentsStatusBadge.textContent = isFull ? "已吃饱" : (isHungry ? "饿肚肚" : `${state.fullness}%`);
       }
       if (syncModeBadge) {
         if (mode === "supabase") {
@@ -256,7 +264,8 @@
 
       if (statFullnessBar) {
         statFullnessBar.style.width = `${state.fullness}%`;
-        statFullnessBar.classList.toggle("is-full", Boolean(state.isFull));
+        statFullnessBar.classList.toggle("is-full", isFull);
+        statFullnessBar.classList.toggle("is-hungry", isHungry);
       }
       if (statFullnessVal) statFullnessVal.textContent = `${state.fullness}%`;
       if (statHydrationBar) statHydrationBar.style.width = `${state.hydration}%`;
@@ -265,12 +274,35 @@
       if (statHappinessVal) statHappinessVal.textContent = `${state.happiness}%`;
 
       if (vitalsTip) {
-        if (state.isFull && state.lastFedBy) {
+        if (isFull && state.lastFedBy) {
           vitalsTip.textContent = `喵喵刚被【${state.lastFedBy.label}】喂得圆滚滚的，现在喂它会摇头打饱嗝哦~ 陪它玩激光/逗猫羽可加速消化！`;
+        } else if (isHungry) {
+          vitalsTip.textContent = "喵喵肚子咕噜噜饿啦~ 快点「喂猫粮」「喂鱼肉」或点击猫碗投喂它吧！";
         } else {
-          vitalsTip.textContent = "饱腹 ≥ 88% 时会捂肚拒食；陪它玩激光/逗猫羽/毛毡球可加速消化~";
+          vitalsTip.textContent = "饱腹 ≤ 28% 会泪汪汪讨食，≥ 88% 会捂肚拒食；玩耍可加速消化~";
         }
       }
+
+      // Trigger adorable hungry begging animation automatically when fullness crosses into hungry range!
+      if (prevHungryState === false && isHungry) {
+        const busyEating =
+          cat.state === "eat_bowl" ||
+          cat.state === "eat_fish_plate" ||
+          cat.state === "go_bowl" ||
+          cat.state === "go_fish_plate" ||
+          cat.state === "hungry_beg";
+        if (!busyEating) {
+          if (hungryBegCueTimer) clearTimeout(hungryBegCueTimer);
+          const delayMs = (cat.z > 1 || cat.state === "jump") ? 850 : 120;
+          hungryBegCueTimer = setTimeout(() => {
+            if (cat.fullness <= 28 && cat.state !== "eat_bowl" && cat.state !== "eat_fish_plate" && cat.state !== "go_bowl" && cat.state !== "go_fish_plate") {
+              cat.begForFood("hungry", 3.8);
+              whisper("喵喵肚子咕噜噜饿啦，泪汪汪举起小爪向你讨食 🥺");
+            }
+          }, delayMs);
+        }
+      }
+      prevHungryState = isHungry;
 
       if (momentsList) {
         const items = state.moments || [];
@@ -485,7 +517,13 @@
         const res = cat.performNextTrick();
         const s = cat.getScale();
         world.spawnSparkles(cat.x, cat.y - 52 * s, 8);
-        if (social) social.recordInteraction("trick", res && res.msg ? `逗喵喵表演：${res.msg}` : "");
+        if (trickBtn) {
+          if (res && res.action === "hungry") {
+            if (social) social.recordInteraction("hungry_beg");
+          } else if (social) {
+            social.recordInteraction("trick", res && res.msg ? `逗喵喵表演：${res.msg}` : "");
+          }
+        }
         if (res && res.msg) whisper(res.msg);
       });
     }
@@ -694,12 +732,23 @@
           if (window.MoeAudio) window.MoeAudio.playMew("tiny");
           if (social) social.recordInteraction("pet", "轻轻点了一下喵喵的小黑鼻子，喵了一声");
           document.body.dataset.cursor = "petting";
+        } else if (cat.fullness <= 28 && cat.state !== "hungry_beg") {
+          // When kitty is hungry, tapping it makes it look up with pleading hungry eyes & beg for food!
+          cat.begForFood("hungry", 3.8);
+          world.spawnHeart(e.clientX, e.clientY - 22, 1);
+          if (social) social.recordInteraction("hungry_beg");
+          whisper("喵呜~ 小猫捂着咕噜噜叫的扁肚皮泪汪汪地望着你，快喂点猫粮或三文鱼吧 🥺");
+          document.body.dataset.cursor = "petting";
         } else {
+          const wasBegging = cat.state === "hungry_beg";
           cat.pet(e.clientX, e.clientY);
-          world.spawnHeart(e.clientX, e.clientY - 20, 1);
+          world.spawnHeart(e.clientX, e.clientY - 20, wasBegging ? 2 : 1);
           if (window.MoeAudio) {
             window.MoeAudio.pokePurr();
             if (Math.random() < 0.4) window.MoeAudio.playMew("sweet");
+          }
+          if (wasBegging) {
+            whisper("轻轻揉了揉扁扁的小肚皮~ 点下方「喂猫粮」或「喂鱼肉」就能让它马上干饭啦 🥣");
           }
           if (social) social.recordInteraction("pet");
           document.body.dataset.cursor = "petting";

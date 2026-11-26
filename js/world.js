@@ -280,6 +280,9 @@
           if (typeof this.onWorldEvent === "function") {
             this.onWorldEvent("fish_plate_done", { plateMeatLevel: this.plateMeatLevel });
           }
+        } else if (ev === "want_beg_bowl") {
+          const L = this.getRoomLayout();
+          this.cat.goToEmptyBowlAndBeg(L.bowls.x - 13, L.bowls.y);
         }
       };
 
@@ -825,6 +828,9 @@
      */
     syncSharedLevels(sharedState) {
       if (!sharedState) return;
+      if (typeof sharedState.fullness === "number") {
+        this.cat.fullness = sharedState.fullness;
+      }
       if (this.bowlPourTimer <= 0 && this.kibbleDrops.length === 0 && typeof sharedState.bowlFoodLevel === "number") {
         if (this.cat.state !== "eat_bowl") {
           this.bowlFoodLevel = sharedState.bowlFoodLevel;
@@ -860,6 +866,8 @@
         this.tossFish(this.width * 0.5, this.height * 0.62);
       } else if (moment.action === "refused_full" || moment.action === "refused_water") {
         this.cat.refuseFoodFull(moment.action === "refused_water" ? "hydrated" : "full");
+      } else if (moment.action === "hungry_beg") {
+        this.cat.begForFood("hungry", 3.6);
       } else if (moment.action === "pet" || moment.action === "roll") {
         this.spawnHeart(this.cat.x, this.cat.y - 74 * s, 3);
         if (moment.action === "roll") this.cat.startRoll(3.0);
