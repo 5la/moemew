@@ -338,6 +338,11 @@ body[data-cursor="laser"] .stage-canvas {
   box-shadow: 0 0 0 3px rgba(236, 132, 120, 0.26);
 }
 
+.online-dot.is-hungry {
+  background: #E8A24A;
+  box-shadow: 0 0 0 3px rgba(232, 162, 74, 0.28);
+}
+
 .moments-pill-badge {
   font-size: 0.71rem;
   font-weight: 600;
@@ -355,6 +360,15 @@ body[data-cursor="laser"] .stage-canvas {
 
 html[data-theme="night"] .moments-pill-badge.is-full {
   color: #FFB2A8;
+}
+
+.moments-pill-badge.is-hungry {
+  background: rgba(242, 174, 82, 0.24);
+  color: #B46318;
+}
+
+html[data-theme="night"] .moments-pill-badge.is-hungry {
+  color: #FFD18C;
 }
 
 .moments-drawer {
@@ -485,6 +499,7 @@ html[data-theme="night"] .vitals-card {
 
 .fill-food { background: linear-gradient(90deg, #E8B16E, #E8876E); }
 .fill-food.is-full { background: linear-gradient(90deg, #EB7D6E, #D9534F); }
+.fill-food.is-hungry { background: linear-gradient(90deg, #F4C36C, #E89648); }
 .fill-water { background: linear-gradient(90deg, #88CCF0, #5FAFE0); }
 .fill-happy { background: linear-gradient(90deg, #F2A3B8, #E67696); }
 
