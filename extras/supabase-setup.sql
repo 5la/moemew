@@ -104,6 +104,7 @@ begin
       'hydration', round(v_water)::int,
       'happiness', round(v_happy)::int,
       'isFull', (v_full >= 88),
+      'isHungry', (v_full <= 28),
       'isHydrated', (v_water >= 92),
       'bowlFoodLevel', round(r.bowl_food_level::numeric, 2),
       'bowlWaterLevel', round(r.bowl_water_level::numeric, 2),
@@ -177,6 +178,7 @@ begin
     when 'wand'            then v_kind := 'play';       v_dfull := -6; v_dwater := -2; v_dhappy := 10; v_icon := '🪶'; v_default_text := '高举逗猫羽引得喵喵轻盈腾空扑抓';
     when 'ball'            then v_kind := 'play';       v_dfull := -6; v_dwater := -2; v_dhappy := 9;  v_icon := '🧶'; v_default_text := '和喵喵在客厅玩起了毛毡球接力赛';
     when 'trick'           then v_kind := 'play';       v_dfull := -5; v_dwater := -1; v_dhappy := 8;  v_icon := '✨'; v_default_text := '逗喵喵表演了拿手绝活';
+    when 'hungry_beg'      then v_kind := 'play';       v_dfull := 0;  v_dwater := 0;  v_dhappy := 0;  v_icon := '🥺'; v_default_text := '被喵喵泪汪汪举起小爪讨食啦，肚子咕噜噜叫';
     when 'prop'            then v_kind := 'play';       v_dfull := 0;  v_dwater := 0;  v_dhappy := 4;  v_icon := '🏡'; v_default_text := '轻点了客厅里的温馨小摆件';
     else
       return jsonb_build_object('ok', false, 'error', 'unknown_action');
@@ -276,6 +278,7 @@ begin
         'hydration', round(v_water)::int,
         'happiness', round(v_happy)::int,
         'isFull', (v_full >= 88),
+        'isHungry', (v_full <= 28),
         'isHydrated', (v_water >= 92),
         'bowlFoodLevel', round(v_bf::numeric, 2),
         'bowlWaterLevel', round(v_bw::numeric, 2),
@@ -349,6 +352,7 @@ begin
         'hydration', round(v_water)::int,
         'happiness', round(v_happy)::int,
         'isFull', (v_full >= 88),
+        'isHungry', (v_full <= 28),
         'isHydrated', (v_water >= 92),
         'bowlFoodLevel', round(v_bf::numeric, 2),
         'bowlWaterLevel', round(v_bw::numeric, 2),
@@ -438,6 +442,7 @@ begin
       'hydration', round(v_water)::int,
       'happiness', round(v_happy)::int,
       'isFull', (v_full >= 88),
+      'isHungry', (v_full <= 28),
       'isHydrated', (v_water >= 92),
       'bowlFoodLevel', round(v_bf::numeric, 2),
       'bowlWaterLevel', round(v_bw::numeric, 2),

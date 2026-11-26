@@ -38,6 +38,7 @@ const ACTION_META = {
   wand:            { kind: "play",  full: -6, water: -2, happy: 10, icon: "🪶", text: "高举逗猫羽引得喵喵轻盈腾空扑抓" },
   ball:            { kind: "play",  full: -6, water: -2, happy: 9,  icon: "🧶", text: "和喵喵在客厅玩起了毛毡球接力赛" },
   trick:           { kind: "play",  full: -5, water: -1, happy: 8,  icon: "✨", text: "逗喵喵表演了拿手绝活" },
+  hungry_beg:      { kind: "play",  full: 0,  water: 0,  happy: 0,  icon: "🥺", text: "被喵喵泪汪汪举起小爪讨食啦，肚子咕噜噜叫" },
   prop:            { kind: "play",  full: 0,  water: 0,  happy: 4,  icon: "🏡", text: "轻点了客厅里的温馨小摆件" }
 };
 
@@ -151,6 +152,7 @@ function formatResp(s, visitor, storageMode, extra = {}) {
       hydration: Math.round(s.hydration),
       happiness: Math.round(s.happiness),
       isFull: s.fullness >= FULL_REFUSE_THRESHOLD,
+      isHungry: s.fullness <= 28,
       isHydrated: s.hydration >= WATER_REFUSE_THRESHOLD,
       bowlFoodLevel: s.bowlFoodLevel,
       bowlWaterLevel: s.bowlWaterLevel,
